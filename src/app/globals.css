@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-divvy-yellow: #FFF0A0;
+  --color-divvy-pink: #FFB0E0;
+  --color-divvy-green: #22C55E;
+  --color-divvy-teal: #14B8A6;
+  --color-divvy-cyan: #06B6D4;
+  --color-divvy-dark: #1a1a2e;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-pixel {
+  font-family: 'Press Start 2P', monospace;
+}
+
+.bg-divvy-gradient {
+  background: linear-gradient(135deg, var(--color-divvy-yellow), var(--color-divvy-pink));
+}
+
+.text-divvy-gradient {
+  background: linear-gradient(90deg, var(--color-divvy-green), var(--color-divvy-teal), var(--color-divvy-cyan));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-slide-up {
+    animation: none;
+  }
+}
