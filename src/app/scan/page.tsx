@@ -15,6 +15,10 @@ export default function ScanPage() {
   const router = useRouter();
   const [status, setStatus] = useState<"capture" | "scanning" | "manual" | "error">("capture");
   const [errorMessage, setErrorMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const describeError = (err: unknown) =>
+    err instanceof Error ? err.message : String(err);
 
   const handleCapture = async (file: File) => {
     setStatus("scanning");
@@ -58,7 +62,14 @@ export default function ScanPage() {
         session_id: "",
       };
 
-      await createReceipt(receipt);
+      try {
+        await createReceipt(receipt);
+      } catch (err) {
+        console.error("Failed to save receipt:", err);
+        setErrorMessage(`Couldn't save receipt: ${describeError(err)}`);
+        setStatus("manual");
+        return;
+      }
       router.push(`/receipt/${receiptId}`);
     } catch {
       setErrorMessage("Something went wrong. Try entering items manually.");
@@ -98,7 +109,16 @@ export default function ScanPage() {
       session_id: "",
     };
 
-    await createReceipt(receipt);
+    setSaving(true);
+    setErrorMessage("");
+    try {
+      await createReceipt(receipt);
+    } catch (err) {
+      console.error("Failed to save receipt:", err);
+      setErrorMessage(`Couldn't save receipt: ${describeError(err)}`);
+      setSaving(false);
+      return;
+    }
     router.push(`/receipt/${receiptId}`);
   };
 
@@ -138,7 +158,7 @@ export default function ScanPage() {
                 <p className="text-amber-800 text-sm">{errorMessage}</p>
               </Card>
             )}
-            <ManualEntryForm onSubmit={handleManualEntry} />
+            <ManualEntryForm onSubmit={handleManualEntry} loading={saving} />
           </>
         )}
 

@@ -20,6 +20,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [hostName, setHostName] = useState("");
   const [showNameInput, setShowNameInput] = useState(false);
 
@@ -107,6 +108,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
     if (!hostName.trim()) return;
 
     setSaving(true);
+    setSaveError("");
     try {
       // Update receipt status
       await updateReceipt(receipt.id, {
@@ -139,6 +141,8 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
       router.push(`/split/${sessionId}`);
     } catch (err) {
       console.error("Failed to create session:", err);
+      const message = err instanceof Error ? err.message : String(err);
+      setSaveError(`Couldn't create session: ${message}`);
       setSaving(false);
     }
   };
@@ -194,6 +198,12 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
               onChange={(e) => setHostName(e.target.value)}
               autoFocus
             />
+          </Card>
+        )}
+
+        {saveError && (
+          <Card className="!bg-amber-50 border border-amber-200 w-full">
+            <p className="text-amber-800 text-sm">{saveError}</p>
           </Card>
         )}
 
