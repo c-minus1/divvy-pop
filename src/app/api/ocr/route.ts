@@ -90,6 +90,9 @@ export async function POST(request: NextRequest) {
     const parsed = parseReceiptText(rawText);
 
     if (parsed.line_items.length === 0) {
+      console.error(
+        `OCR parse returned zero items. rawText:\n${rawText}`
+      );
       return NextResponse.json(
         { error: "ocr_failed", message: "Could not parse receipt items", rawText },
         { status: 200 }

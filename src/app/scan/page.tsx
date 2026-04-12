@@ -15,6 +15,7 @@ export default function ScanPage() {
   const router = useRouter();
   const [status, setStatus] = useState<"capture" | "scanning" | "manual" | "error">("capture");
   const [errorMessage, setErrorMessage] = useState("");
+  const [rawText, setRawText] = useState("");
   const [saving, setSaving] = useState(false);
 
   const describeError = (err: unknown) =>
@@ -32,6 +33,7 @@ export default function ScanPage() {
 
       if (data.error) {
         setErrorMessage(data.message || "Could not read the receipt.");
+        setRawText(typeof data.rawText === "string" ? data.rawText : "");
         setStatus("manual");
         return;
       }
@@ -67,12 +69,14 @@ export default function ScanPage() {
       } catch (err) {
         console.error("Failed to save receipt:", err);
         setErrorMessage(`Couldn't save receipt: ${describeError(err)}`);
+        setRawText("");
         setStatus("manual");
         return;
       }
       router.push(`/receipt/${receiptId}`);
     } catch {
       setErrorMessage("Something went wrong. Try entering items manually.");
+      setRawText("");
       setStatus("manual");
     }
   };
@@ -156,6 +160,16 @@ export default function ScanPage() {
             {errorMessage && (
               <Card className="!bg-amber-50 border border-amber-200 w-full">
                 <p className="text-amber-800 text-sm">{errorMessage}</p>
+                {rawText && (
+                  <details className="mt-2">
+                    <summary className="text-xs text-amber-800/70 cursor-pointer">
+                      Show what the camera read
+                    </summary>
+                    <pre className="mt-2 text-xs text-amber-900 whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
+                      {rawText}
+                    </pre>
+                  </details>
+                )}
               </Card>
             )}
             <ManualEntryForm onSubmit={handleManualEntry} loading={saving} />
