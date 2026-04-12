@@ -40,13 +40,43 @@ export async function POST(request: NextRequest) {
     );
 
     if (!visionResponse.ok) {
+      const body = await visionResponse.text();
+      console.error(
+        `Vision API error: status=${visionResponse.status} body=${body}`
+      );
+      let upstreamMessage = "";
+      try {
+        const parsed = JSON.parse(body);
+        upstreamMessage = parsed?.error?.message ?? "";
+      } catch {
+        // body was not JSON — fall through to generic message
+      }
       return NextResponse.json(
-        { error: "ocr_failed", message: "Vision API request failed" },
+        {
+          error: "ocr_failed",
+          message: upstreamMessage
+            ? `Vision API: ${upstreamMessage}`
+            : `Vision API request failed (${visionResponse.status})`,
+        },
         { status: 502 }
       );
     }
 
     const visionData = await visionResponse.json();
+
+    // Vision can signal failure inside a 200 response via responses[0].error.
+    const upstreamError = visionData.responses?.[0]?.error;
+    if (upstreamError) {
+      console.error("Vision API returned per-request error:", upstreamError);
+      return NextResponse.json(
+        {
+          error: "ocr_failed",
+          message: `Vision API: ${upstreamError.message ?? "unknown error"}`,
+        },
+        { status: 502 }
+      );
+    }
+
     const textAnnotations = visionData.responses?.[0]?.textAnnotations;
 
     if (!textAnnotations || textAnnotations.length === 0) {
@@ -73,7 +103,8 @@ export async function POST(request: NextRequest) {
       total: parsed.total,
       rawText,
     });
-  } catch {
+  } catch (err) {
+    console.error("OCR route unexpected error:", err);
     return NextResponse.json(
       { error: "ocr_failed", message: "An unexpected error occurred" },
       { status: 500 }
