@@ -80,33 +80,38 @@ function median(values: number[]): number {
     : sorted[mid];
 }
 
-// Cluster left-edge x values to find the dominant name column. We bucket the
-// x values and pick the bucket with the most hits; the target receipt's name
-// column will be the densest vertical stripe of text.
+// Find the x-coordinate where the receipt's name column begins. We bucket
+// word left-edges and return the LEFTMOST bucket that contains enough words
+// to count as a real column. Picking the densest bucket is wrong: on a
+// two-column receipt the price column is typically denser than the name
+// column (prices line up tighter than varying-width names), so "densest"
+// would make us treat names as bleed-over and drop them all.
 function findNameColumnLeft(words: NormalisedWord[]): number | null {
   if (words.length === 0) return null;
   const heights = words.map((w) => w.height);
   const bucketSize = Math.max(8, median(heights));
   const buckets = new Map<number, number>();
   for (const w of words) {
-    const key = Math.round(w.left / bucketSize);
+    const key = Math.floor(w.left / bucketSize);
     buckets.set(key, (buckets.get(key) ?? 0) + 1);
   }
 
-  // Only consider buckets in the left half of the image (the name column
-  // should be on the left). Pick the one with the most words.
-  let bestKey: number | null = null;
-  let bestCount = 0;
+  // A column must be "substantial" — at least ~10% of all words, or 5,
+  // whichever is larger. This filters out small fragment clusters from a
+  // neighbour receipt without requiring us to know how big the receipt is.
+  const threshold = Math.max(5, Math.floor(words.length * 0.1));
+
+  let leftmostKey: number | null = null;
   for (const [key, count] of buckets.entries()) {
-    if (count > bestCount) {
-      bestCount = count;
-      bestKey = key;
+    if (count < threshold) continue;
+    if (leftmostKey === null || key < leftmostKey) {
+      leftmostKey = key;
     }
   }
-  if (bestKey === null) return null;
+  if (leftmostKey === null) return null;
 
   // Convert back to an x coordinate (lower edge of the bucket).
-  return bestKey * bucketSize;
+  return leftmostKey * bucketSize;
 }
 
 interface Row {
@@ -157,10 +162,17 @@ export function linesFromVisionWords(words: VisionWord[]): string {
   // column. Anything further left is likely a different receipt.
   const bleedMargin = Math.max(10, medH * 0.8);
 
-  const kept =
+  let kept =
     nameLeft === null
       ? normalised
       : normalised.filter((w) => w.right >= nameLeft - bleedMargin);
+
+  // Safety rail: if the bleed-over filter would drop more than half of the
+  // words, it almost certainly misidentified the name column. Fall back to
+  // the unfiltered set and let the parser's skip patterns handle noise.
+  if (kept.length < normalised.length * 0.5) {
+    kept = normalised;
+  }
 
   const rows = groupIntoRows(kept);
   rows.sort((a, b) => a.cy - b.cy);

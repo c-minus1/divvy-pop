@@ -93,8 +93,23 @@ export async function POST(request: NextRequest) {
     // us rebuild proper rows instead of trusting Vision's line ordering.
     const words: VisionWord[] = textAnnotations.slice(1);
     const reconstructed = words.length > 0 ? linesFromVisionWords(words) : "";
-    const parserInput = reconstructed.trim().length > 0 ? reconstructed : rawText;
-    const parsed = parseReceiptText(parserInput);
+
+    // Try the bbox-reconstructed input first. If it yields zero items —
+    // which can happen when bleed-over filtering misidentifies the name
+    // column, or when the receipt layout doesn't lend itself to spatial
+    // row grouping — fall back to Vision's native line ordering so we
+    // degrade to the pre-refactor behaviour instead of showing nothing.
+    let parsed = parseReceiptText(
+      reconstructed.trim().length > 0 ? reconstructed : rawText
+    );
+    let usedFallback = false;
+    if (parsed.line_items.length === 0 && reconstructed.trim().length > 0 && rawText) {
+      const fallback = parseReceiptText(rawText);
+      if (fallback.line_items.length > 0) {
+        parsed = fallback;
+        usedFallback = true;
+      }
+    }
 
     if (parsed.line_items.length === 0) {
       console.error(
@@ -106,6 +121,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (usedFallback) {
+      console.warn(
+        `OCR parse used rawText fallback (bbox reconstruction returned no items). reconstructed:\n${reconstructed}`
+      );
+    }
     if (parsed.warning) {
       console.warn(
         `OCR parse warning: ${parsed.warning}\nrawText:\n${rawText}\nreconstructed:\n${reconstructed}`

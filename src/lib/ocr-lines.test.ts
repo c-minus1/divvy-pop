@@ -80,4 +80,80 @@ describe("linesFromVisionWords", () => {
   it("returns an empty string when given no words", () => {
     expect(linesFromVisionWords([])).toBe("");
   });
+
+  it("does not drop name words when the price column is denser than the name column", () => {
+    // Regression for the Vercel preview bug: on a two-column receipt,
+    // prices line up at *exactly* the same left-edge on every row while
+    // name first-words get jittered a few pixels left and right by Vision.
+    // The old heuristic picked the densest bucket as the "name column",
+    // which was actually the price column — so every name word was
+    // filtered as "bleed-over" and the parser got rows of bare prices.
+    const words: VisionWord[] = [];
+    const names = [
+      "1 Pepsi",
+      "1 Diet Pepsi",
+      "1 Maple Bourbon Smash",
+      "1 Smokehouse Nachos",
+      "1 3 Meat Combo",
+      "1 3 Meat Combo",
+      "2 Side Cornbread",
+      "1 3 Meat Combo",
+      "2 Peanut Butter Pie",
+      "1 Salted Caramel Cookie Bar",
+      "1 Coffee",
+    ];
+    const nameLeftJitter = [0, 4, -3, 2, -1, 5, -4, 1, 3, -2, 0];
+    names.forEach((n, i) => {
+      const parts = n.split(" ");
+      parts.forEach((p, j) => {
+        // Different x for each part, jittered per row so the
+        // first-word-column bucket doesn't accumulate all 11 hits.
+        const baseX = 100 + nameLeftJitter[i];
+        words.push(word(p, baseX + j * 55, 100 + i * 40, 45, 20));
+      });
+      // Price column is rock-steady at x=800 — 11 words in one bucket,
+      // the densest single left-edge cluster in the image.
+      words.push(word("$3.50", 800, 100 + i * 40, 50, 20));
+    });
+
+    const out = linesFromVisionWords(words);
+    const lines = out.split("\n");
+    expect(lines.length).toBe(names.length);
+    // Every row must still carry both the item name text AND the price.
+    for (let i = 0; i < lines.length; i++) {
+      expect(lines[i]).toContain("$3.50");
+    }
+    expect(lines[0]).toContain("Pepsi");
+    expect(lines[3]).toContain("Smokehouse");
+    expect(lines[6]).toContain("Cornbread");
+    expect(lines[lines.length - 1]).toContain("Coffee");
+  });
+
+  it("drops bleed-over when it is small relative to the main receipt", () => {
+    // Small scattered fragments on the far left of the image (neighbour
+    // receipt) should be filtered out — they don't form a substantial
+    // column so they never become the leftmost "name column".
+    const words: VisionWord[] = [];
+    // Leftmost fragments: 4 isolated words, each in its own bucket area.
+    words.push(word("1", -200, 60, 10, 20));
+    words.push(word("PM", -190, 100, 20, 20));
+    words.push(word("d)", -205, 140, 15, 20));
+    words.push(word("540", -195, 180, 25, 20));
+
+    // Main receipt: 10 rows at x=100 name column, x=500 price column.
+    for (let i = 0; i < 10; i++) {
+      words.push(word("Item", 100, 220 + i * 40, 40, 20));
+      words.push(word(`Name${i}`, 160, 220 + i * 40, 60, 20));
+      words.push(word("$5.00", 500, 220 + i * 40, 50, 20));
+    }
+
+    const out = linesFromVisionWords(words);
+    expect(out).not.toContain(" PM ");
+    expect(out).not.toMatch(/^1\s/m);
+    expect(out).not.toContain("d)");
+    expect(out).not.toContain("540");
+    // And the real content is still there.
+    expect(out).toContain("$5.00");
+    expect(out).toContain("Name0");
+  });
 });
