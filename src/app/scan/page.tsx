@@ -73,6 +73,15 @@ export default function ScanPage() {
         setStatus("manual");
         return;
       }
+      // Pass the parse warning (if any) to the review screen via
+      // sessionStorage — it's a transient UI hint, not persisted state.
+      if (typeof data.warning === "string" && data.warning) {
+        try {
+          sessionStorage.setItem(`divvy:parse-warning:${receiptId}`, data.warning);
+        } catch {
+          // sessionStorage can throw in private mode; non-fatal.
+        }
+      }
       router.push(`/receipt/${receiptId}`);
     } catch {
       setErrorMessage("Something went wrong. Try entering items manually.");

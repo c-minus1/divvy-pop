@@ -23,6 +23,19 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
   const [saveError, setSaveError] = useState("");
   const [hostName, setHostName] = useState("");
   const [showNameInput, setShowNameInput] = useState(false);
+  // Read the transient parse warning synchronously on mount (lazy
+  // initializer) so we don't trigger a cascading render from an effect.
+  const [parseWarning] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    try {
+      const key = `divvy:parse-warning:${id}`;
+      const stored = sessionStorage.getItem(key);
+      if (stored) sessionStorage.removeItem(key);
+      return stored ?? "";
+    } catch {
+      return "";
+    }
+  });
 
   useEffect(() => {
     getReceipt(id).then((r) => {
@@ -154,6 +167,12 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
         <h2 className="text-xl font-semibold text-divvy-dark text-center">
           Review your receipt
         </h2>
+
+        {parseWarning && (
+          <Card className="!bg-amber-50 border border-amber-200 w-full">
+            <p className="text-amber-800 text-sm">{parseWarning}</p>
+          </Card>
+        )}
 
         <Card>
           <div className="flex flex-col gap-3">
