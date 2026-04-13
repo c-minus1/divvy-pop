@@ -8,7 +8,8 @@ interface CameraCaptureProps {
 }
 
 export default function CameraCapture({ onCapture }: CameraCaptureProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
 
   const compressImage = useCallback(async (file: File): Promise<File> => {
@@ -70,7 +71,8 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
           <button
             onClick={() => {
               setPreview(null);
-              if (fileInputRef.current) fileInputRef.current.value = "";
+              if (cameraInputRef.current) cameraInputRef.current.value = "";
+              if (galleryInputRef.current) galleryInputRef.current.value = "";
             }}
             className="absolute top-3 right-3 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white text-sm"
             aria-label="Remove photo"
@@ -81,7 +83,7 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
       ) : (
         <div
           className="w-full aspect-[3/4] rounded-2xl border-2 border-dashed border-divvy-teal/40 bg-white/30 flex flex-col items-center justify-center gap-4 cursor-pointer hover:bg-white/50 transition-colors"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => cameraInputRef.current?.click()}
         >
           <div className="text-5xl">📸</div>
           <p className="text-divvy-dark/60 font-medium">
@@ -94,19 +96,27 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
       )}
 
       <input
-        ref={fileInputRef}
+        ref={cameraInputRef}
         type="file"
         accept="image/*"
         capture="environment"
         onChange={handleFileChange}
         className="hidden"
-        aria-label="Capture or upload receipt"
+        aria-label="Take a photo of receipt"
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileChange}
+        className="hidden"
+        aria-label="Choose receipt from gallery"
       />
 
       {!preview && (
         <Button
           variant="ghost"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => galleryInputRef.current?.click()}
           className="mt-2"
         >
           Choose from gallery
