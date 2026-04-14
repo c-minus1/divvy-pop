@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseReceiptText } from "@/lib/ocr-parser";
+import { linesFromVisionWords, type VisionWord } from "@/lib/ocr-lines";
 
 export async function POST(request: NextRequest) {
   try {
@@ -86,16 +87,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const rawText = textAnnotations[0].description;
-    const parsed = parseReceiptText(rawText);
+    const rawText: string = textAnnotations[0].description ?? "";
+    // Per-word annotations (element [0] is the full concatenation, the rest
+    // are individual words with bounding polys). Using word-level data lets
+    // us rebuild proper rows instead of trusting Vision's line ordering.
+    const words: VisionWord[] = textAnnotations.slice(1);
+    const reconstructed = words.length > 0 ? linesFromVisionWords(words) : "";
+
+    // Try the bbox-reconstructed input first. If it yields zero items —
+    // which can happen when bleed-over filtering misidentifies the name
+    // column, or when the receipt layout doesn't lend itself to spatial
+    // row grouping — fall back to Vision's native line ordering so we
+    // degrade to the pre-refactor behaviour instead of showing nothing.
+    let parsed = parseReceiptText(
+      reconstructed.trim().length > 0 ? reconstructed : rawText
+    );
+    let usedFallback = false;
+    if (parsed.line_items.length === 0 && reconstructed.trim().length > 0 && rawText) {
+      const fallback = parseReceiptText(rawText);
+      if (fallback.line_items.length > 0) {
+        parsed = fallback;
+        usedFallback = true;
+      }
+    }
 
     if (parsed.line_items.length === 0) {
       console.error(
-        `OCR parse returned zero items. rawText:\n${rawText}`
+        `OCR parse returned zero items. rawText:\n${rawText}\nreconstructed:\n${reconstructed}`
       );
       return NextResponse.json(
         { error: "ocr_failed", message: "Could not parse receipt items", rawText },
         { status: 200 }
+      );
+    }
+
+    if (usedFallback) {
+      console.warn(
+        `OCR parse used rawText fallback (bbox reconstruction returned no items). reconstructed:\n${reconstructed}`
+      );
+    }
+    if (parsed.warning) {
+      console.warn(
+        `OCR parse warning: ${parsed.warning}\nrawText:\n${rawText}\nreconstructed:\n${reconstructed}`
       );
     }
 
@@ -104,6 +137,7 @@ export async function POST(request: NextRequest) {
       subtotal: parsed.subtotal,
       tax: parsed.tax,
       total: parsed.total,
+      warning: parsed.warning,
       rawText,
     });
   } catch (err) {
