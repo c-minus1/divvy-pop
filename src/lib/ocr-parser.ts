@@ -42,6 +42,19 @@ function classify(name: string): LineKind {
 // Quesadilla" — if that's the actual menu name there's nothing to strip
 // since there's no leading qty anyway; worst case we turn "3 Cheese" into
 // "Cheese", which the user can edit).
+// Strip leading noise characters ("(", ")", "|", "*", etc.) and leading
+// bare decimal bleed-over ("1.99 ") from a reconstructed line. Stray text
+// from a neighbouring receipt photographed alongside the target receipt
+// gets glued to the start of rows when bbox grouping collects same-y
+// words together; we want those gone before we try to classify the line
+// or extract a name.
+function cleanLine(line: string): string {
+  return line
+    .replace(/^[^\w$]+/, "")
+    .replace(/^\d+\.\d{2}\s+(?=\S)/, "")
+    .trim();
+}
+
 function stripLeadingQty(name: string): string {
   return name.replace(/^(\d+)\s+(?=\S)/, "");
 }
@@ -103,7 +116,9 @@ export function parseReceiptText(rawText: string): ParsedReceipt {
     last.name = `${last.name} (${pending.name})`;
   };
 
-  for (const line of lines) {
+  for (const rawLine of lines) {
+    const line = cleanLine(rawLine);
+    if (!line) continue;
     const priceMatch = line.match(pricePattern);
 
     if (priceMatch) {
@@ -161,6 +176,26 @@ export function parseReceiptText(rawText: string): ParsedReceipt {
 
   // Flush a trailing pending (descriptor after the last priced item).
   if (pending) salvagePending();
+
+  // Safety net: if any pushed item's name still classifies as a summary
+  // keyword (because leading junk confused the in-loop classifier), pull
+  // it out of the items list and promote it to the matching summary field.
+  // This catches e.g. a ") Subtotal $159.25" row that squeaked past
+  // cleanLine with some other garbage we didn't anticipate.
+  for (let i = items.length - 1; i >= 0; i--) {
+    const kind = classify(items[i].name.replace(/^[^\w]+/, "").trim());
+    if (kind === "subtotal" || kind === "tax" || kind === "total") {
+      const { price } = items[i];
+      items.splice(i, 1);
+      if (kind === "subtotal" && subtotal === 0) subtotal = price;
+      else if (kind === "tax" && tax === 0) tax = price;
+      else if (kind === "total" && total === 0) total = price;
+    }
+  }
+  // Re-number item_order so the indices stay contiguous after removals.
+  items.forEach((item, idx) => {
+    item.item_order = idx;
+  });
 
   // If no subtotal was found, sum up the items
   if (subtotal === 0 && items.length > 0) {

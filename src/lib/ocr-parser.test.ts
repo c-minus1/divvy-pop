@@ -199,6 +199,56 @@ describe("parseReceiptText", () => {
     expect(parsed.warning).toBeUndefined();
   });
 
+  it("strips leading garbage characters from rows (bleed-over from adjacent receipts)", () => {
+    // These are the three failure modes observed on the Vercel preview
+    // after the bbox filter was fixed: a ")" character from a neighbouring
+    // receipt bleeding into the start of the Subtotal and Coffee rows,
+    // and a "1.99" decimal bleeding into the Pepsi row on the same y.
+    const rawText = [
+      "1.99 1 Pepsi $3.50",
+      "1 Diet Pepsi $3.50",
+      ") 1 Coffee $2.25",
+      ") Subtotal $159.25",
+      "Tax $12.74",
+      "Total $171.99",
+    ].join("\n");
+
+    const parsed = parseReceiptText(rawText);
+
+    expect(parsed.line_items.map((i) => i.name)).toEqual([
+      "Pepsi",
+      "Diet Pepsi",
+      "Coffee",
+    ]);
+    expect(parsed.subtotal).toBe(159.25);
+    expect(parsed.tax).toBe(12.74);
+    expect(parsed.total).toBe(171.99);
+    // The Subtotal row must not have become a line item.
+    expect(
+      parsed.line_items.some((i) => /sub\s*total/i.test(i.name))
+    ).toBe(false);
+  });
+
+  it("does not push the Subtotal row as an item even if leading junk survives cleanLine", () => {
+    // Belt-and-suspenders for the post-parse safety net: if some weird
+    // leading junk that cleanLine doesn't match still makes it to the
+    // pushItem step, the post-parse sweep should promote it to the
+    // subtotal field and drop it from the items list.
+    const rawText = [
+      "1 Pepsi $3.50",
+      "** Subtotal $3.50",
+      "** Tax $0.28",
+      "** Total $3.78",
+    ].join("\n");
+
+    const parsed = parseReceiptText(rawText);
+    expect(parsed.line_items).toHaveLength(1);
+    expect(parsed.line_items[0].name).toBe("Pepsi");
+    expect(parsed.subtotal).toBe(3.5);
+    expect(parsed.tax).toBe(0.28);
+    expect(parsed.total).toBe(3.78);
+  });
+
   it("flags a warning when items do not add up to the subtotal", () => {
     // Third item goes missing — this is the failure mode we want the UI
     // to surface via the amber banner.
