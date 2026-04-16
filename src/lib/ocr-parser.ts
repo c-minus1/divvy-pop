@@ -162,20 +162,41 @@ export function parseReceiptText(rawText: string): ParsedReceipt {
           apply(name, price, kind);
         }
         // else: orphan priced line after summary (e.g. "20% ($203.84)") — drop.
-      } else if (pending && !reachedSummary) {
+      } else if (pending) {
         // Standalone price line; pair with the most recent pending name.
-        apply(pending.name, price, pending.kind);
+        // Post-summary we only honour summary-kind pendings (Tax, Total,
+        // Subtotal) — pairing an item-kind pending with a bare price in
+        // the footer would promote noise like suggested-tip totals to an
+        // item.
+        const allowPair =
+          !reachedSummary ||
+          pending.kind === "subtotal" ||
+          pending.kind === "tax" ||
+          pending.kind === "total";
+        if (allowPair) {
+          apply(pending.name, price, pending.kind);
+        }
         pending = null;
       }
       // else: orphan price line with no candidate name — drop.
       continue;
     }
 
-    // Non-priced lines past the summary are footer noise — drop them.
-    if (reachedSummary) continue;
-
     // No price on this line — it's a name candidate (or something to skip).
     const kind = classify(line);
+
+    // Past the summary we drop footer noise, with one exception: summary
+    // keyword lines (Tax, Total, Subtotal) that appeared without a price
+    // on the same row — usually because bbox row-grouping split the name
+    // and the price into two rows. Keep them as pending so the next bare
+    // priced line can pair with them.
+    if (reachedSummary) {
+      if (kind === "subtotal" || kind === "tax" || kind === "total") {
+        pending = { name: line, kind };
+      }
+      continue;
+    }
+
     if (kind === "skip") {
       // A skip line breaks any continuation chain; drop the pending so it
       // doesn't accidentally attach to an item across a header.
@@ -228,6 +249,20 @@ export function parseReceiptText(rawText: string): ParsedReceipt {
   // If no subtotal was found, sum up the items
   if (subtotal === 0 && items.length > 0) {
     subtotal = items.reduce((sum, item) => sum + item.price, 0);
+  }
+
+  // Belt-and-suspenders: if Subtotal and Total both came through cleanly
+  // but Tax was dropped somewhere (most commonly because bbox row
+  // grouping split "Tax" and its price onto separate rows and neither
+  // half reached a sensible classification), derive tax from the math.
+  // Guard with a ≤15% sanity check — US sales tax maxes out around 11-12%
+  // combined, so anything higher is almost certainly a tip included in
+  // the total, and deriving tax from that would silently over-report.
+  if (tax === 0 && subtotal > 0 && total > subtotal) {
+    const derived = Math.round((total - subtotal) * 100) / 100;
+    if (derived > 0 && derived <= subtotal * 0.15) {
+      tax = derived;
+    }
   }
 
   // If no total was found, compute it

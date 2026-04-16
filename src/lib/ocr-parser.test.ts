@@ -284,6 +284,60 @@ describe("parseReceiptText", () => {
     ]);
   });
 
+  it("pairs a bare 'Tax' name row with a subsequent bare price row after the summary started", () => {
+    // Bbox row grouping can split the Tax row into two logical lines
+    // (name on one, price on the next) even after Subtotal has already
+    // been seen. The pre-fix parser dropped the bare 'Tax' line under
+    // the reachedSummary guard and then had no pending to pair the bare
+    // price with — the receipt ended up with tax=0. The fix lets summary
+    // keywords (Tax, Total, Subtotal) become pending even after the
+    // summary has started.
+    const rawText = [
+      "1 Pepsi $3.50",
+      "Subtotal $3.50",
+      "Tax",
+      "$0.28",
+      "Total $3.78",
+    ].join("\n");
+
+    const parsed = parseReceiptText(rawText);
+    expect(parsed.line_items.map((i) => i.name)).toEqual(["Pepsi"]);
+    expect(parsed.subtotal).toBe(3.5);
+    expect(parsed.tax).toBe(0.28);
+    expect(parsed.total).toBe(3.78);
+  });
+
+  it("derives tax from total - subtotal when the tax row is missing entirely", () => {
+    // Last-resort safety net: if Subtotal and Total parse cleanly but
+    // the Tax row was dropped somewhere upstream (bbox filter misfire,
+    // unusual row ordering, etc.), derive tax from the math.
+    const rawText = [
+      "1 Pepsi $3.50",
+      "Subtotal $3.50",
+      "Total $3.78",
+    ].join("\n");
+
+    const parsed = parseReceiptText(rawText);
+    expect(parsed.subtotal).toBe(3.5);
+    expect(parsed.tax).toBe(0.28);
+    expect(parsed.total).toBe(3.78);
+  });
+
+  it("does not derive tax when the subtotal-to-total gap looks like a tip", () => {
+    // If Total includes a tip (gap > 15% of subtotal), we should NOT
+    // falsely promote it to tax.
+    const rawText = [
+      "1 Dinner $100.00",
+      "Subtotal $100.00",
+      "Total $120.00",
+    ].join("\n");
+
+    const parsed = parseReceiptText(rawText);
+    expect(parsed.subtotal).toBe(100);
+    expect(parsed.tax).toBe(0);
+    expect(parsed.total).toBe(120);
+  });
+
   it("does not push the Subtotal row as an item even if leading junk survives cleanLine", () => {
     // Belt-and-suspenders for the post-parse safety net: if some weird
     // leading junk that cleanLine doesn't match still makes it to the
