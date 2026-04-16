@@ -229,6 +229,61 @@ describe("parseReceiptText", () => {
     ).toBe(false);
   });
 
+  it("strips leading digit-paren bleed ('03) ', '84 ) ') from item and summary rows", () => {
+    // A neighbouring card receipt's totals ("0.03)", "0.55)", "0.84)") get
+    // tokenised by Vision as a digit cluster plus a closing paren, and end
+    // up glued to the start of several rows in the target receipt. The
+    // Coffee row came out as "03 ) 1 Coffee $2.25" (the leading "03 " got
+    // stripped as a quantity, leaving ") 1 Coffee" visible to the user),
+    // and the Tax row came out as "84 ) Tax $12.74" (mis-classified as a
+    // line item because it doesn't start with "Tax"). Both shapes should
+    // now be handled up front by cleanLine.
+    const rawText = [
+      "1 Pepsi $3.50",
+      "03 ) 1 Coffee $2.25",
+      ") 03) Subtotal $159.25",
+      "84) Tax $12.74",
+      "55 ) Tax $12.74",
+      "Total $171.99",
+    ].join("\n");
+
+    const parsed = parseReceiptText(rawText);
+
+    // Only the two real items — Pepsi and Coffee — should land as items.
+    expect(parsed.line_items.map((i) => i.name)).toEqual(["Pepsi", "Coffee"]);
+    expect(parsed.subtotal).toBe(159.25);
+    // Both Tax rows carry the same price; the first one wins, the second
+    // is a duplicate that should NOT become a phantom item.
+    expect(parsed.tax).toBe(12.74);
+    expect(parsed.total).toBe(171.99);
+    expect(
+      parsed.line_items.some((i) => /tax/i.test(i.name))
+    ).toBe(false);
+    expect(
+      parsed.line_items.some((i) => /sub\s*total/i.test(i.name))
+    ).toBe(false);
+  });
+
+  it("new digit-paren bleed regex does not over-match digit-leading names", () => {
+    // The digit-paren bleed regex (^\d+\s*[)\]}]+\s*) requires a closing
+    // bracket to follow the digits. A name like "1 3 Meat Combo" or
+    // "3 Cheese Quesadilla" has a space after the leading digits instead
+    // of a bracket, so cleanLine must leave it alone. (stripLeadingQty
+    // still peels one leading qty token — that's pre-existing behaviour.)
+    // Meanwhile, the post-parse safety net must NOT run stripLeadingQty a
+    // second time on "3 Meat Combo", which would turn it into "Meat Combo".
+    const rawText = [
+      "1 3 Meat Combo $32.00",
+      "1 3 Meat Combo $32.00",
+    ].join("\n");
+
+    const parsed = parseReceiptText(rawText);
+    expect(parsed.line_items.map((i) => i.name)).toEqual([
+      "3 Meat Combo",
+      "3 Meat Combo",
+    ]);
+  });
+
   it("does not push the Subtotal row as an item even if leading junk survives cleanLine", () => {
     // Belt-and-suspenders for the post-parse safety net: if some weird
     // leading junk that cleanLine doesn't match still makes it to the

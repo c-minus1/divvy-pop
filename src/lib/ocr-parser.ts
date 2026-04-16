@@ -42,17 +42,32 @@ function classify(name: string): LineKind {
 // Quesadilla" — if that's the actual menu name there's nothing to strip
 // since there's no leading qty anyway; worst case we turn "3 Cheese" into
 // "Cheese", which the user can edit).
-// Strip leading noise characters ("(", ")", "|", "*", etc.) and leading
-// bare decimal bleed-over ("1.99 ") from a reconstructed line. Stray text
-// from a neighbouring receipt photographed alongside the target receipt
-// gets glued to the start of rows when bbox grouping collects same-y
-// words together; we want those gone before we try to classify the line
-// or extract a name.
+// Strip leading noise characters ("(", ")", "|", "*", etc.), leading bare
+// decimal bleed-over ("1.99 "), and leading digit-cluster + closing-bracket
+// bleed ("03) ", "84 ) ") from a reconstructed line. Stray text from a
+// neighbouring receipt photographed alongside the target receipt gets glued
+// to the start of rows when bbox grouping collects same-y words together;
+// we want those gone before we try to classify the line or extract a name.
+// The strips run in a loop so stacked bleed tokens (e.g. ") 03) ") get
+// peeled off in a single pass.
 function cleanLine(line: string): string {
-  return line
-    .replace(/^[^\w$]+/, "")
-    .replace(/^\d+\.\d{2}\s+(?=\S)/, "")
-    .trim();
+  let prev: string;
+  let cur = line;
+  do {
+    prev = cur;
+    cur = cur
+      // Leading non-word chars: ")", "*", "|", etc.
+      .replace(/^[^\w$]+/, "")
+      // Leading bare decimal bleed: "1.99 " before the real line.
+      .replace(/^\d+\.\d{2}\s+(?=\S)/, "")
+      // Leading digit cluster + closing bracket/paren bleed: "03) ",
+      // "84 ) ", "55]" — tail-end fragments of totals from a
+      // neighbouring receipt like "0.03)" that Vision tokenised as
+      // "03" + ")".
+      .replace(/^\d+\s*[)\]}]+\s*/, "")
+      .trim();
+  } while (cur !== prev);
+  return cur;
 }
 
 function stripLeadingQty(name: string): string {
@@ -181,15 +196,28 @@ export function parseReceiptText(rawText: string): ParsedReceipt {
   // keyword (because leading junk confused the in-loop classifier), pull
   // it out of the items list and promote it to the matching summary field.
   // This catches e.g. a ") Subtotal $159.25" row that squeaked past
-  // cleanLine with some other garbage we didn't anticipate.
+  // cleanLine with some other garbage we didn't anticipate. Additionally,
+  // if cleanLine can scrub the stored name (e.g. ") 1 Coffee" → "Coffee"),
+  // write the scrubbed version back so the review screen doesn't show the
+  // leading junk — this is the belt to cleanLine's braces for any bleed
+  // shapes that slipped past the in-loop cleanup.
   for (let i = items.length - 1; i >= 0; i--) {
-    const kind = classify(items[i].name.replace(/^[^\w]+/, "").trim());
+    const precleaned = cleanLine(items[i].name);
+    // Only re-run stripLeadingQty if cleanLine actually peeled something
+    // off — otherwise we'd chew a second "quantity" off names like
+    // "3 Meat Combo" that the main loop already stripped correctly (from
+    // an original "1 3 Meat Combo").
+    const cleaned =
+      precleaned !== items[i].name ? stripLeadingQty(precleaned) : precleaned;
+    const kind = classify(cleaned);
     if (kind === "subtotal" || kind === "tax" || kind === "total") {
       const { price } = items[i];
       items.splice(i, 1);
       if (kind === "subtotal" && subtotal === 0) subtotal = price;
       else if (kind === "tax" && tax === 0) tax = price;
       else if (kind === "total" && total === 0) total = price;
+    } else if (cleaned && cleaned !== items[i].name) {
+      items[i].name = cleaned;
     }
   }
   // Re-number item_order so the indices stay contiguous after removals.
