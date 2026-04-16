@@ -229,6 +229,115 @@ describe("parseReceiptText", () => {
     ).toBe(false);
   });
 
+  it("strips leading digit-paren bleed ('03) ', '84 ) ') from item and summary rows", () => {
+    // A neighbouring card receipt's totals ("0.03)", "0.55)", "0.84)") get
+    // tokenised by Vision as a digit cluster plus a closing paren, and end
+    // up glued to the start of several rows in the target receipt. The
+    // Coffee row came out as "03 ) 1 Coffee $2.25" (the leading "03 " got
+    // stripped as a quantity, leaving ") 1 Coffee" visible to the user),
+    // and the Tax row came out as "84 ) Tax $12.74" (mis-classified as a
+    // line item because it doesn't start with "Tax"). Both shapes should
+    // now be handled up front by cleanLine.
+    const rawText = [
+      "1 Pepsi $3.50",
+      "03 ) 1 Coffee $2.25",
+      ") 03) Subtotal $159.25",
+      "84) Tax $12.74",
+      "55 ) Tax $12.74",
+      "Total $171.99",
+    ].join("\n");
+
+    const parsed = parseReceiptText(rawText);
+
+    // Only the two real items — Pepsi and Coffee — should land as items.
+    expect(parsed.line_items.map((i) => i.name)).toEqual(["Pepsi", "Coffee"]);
+    expect(parsed.subtotal).toBe(159.25);
+    // Both Tax rows carry the same price; the first one wins, the second
+    // is a duplicate that should NOT become a phantom item.
+    expect(parsed.tax).toBe(12.74);
+    expect(parsed.total).toBe(171.99);
+    expect(
+      parsed.line_items.some((i) => /tax/i.test(i.name))
+    ).toBe(false);
+    expect(
+      parsed.line_items.some((i) => /sub\s*total/i.test(i.name))
+    ).toBe(false);
+  });
+
+  it("new digit-paren bleed regex does not over-match digit-leading names", () => {
+    // The digit-paren bleed regex (^\d+\s*[)\]}]+\s*) requires a closing
+    // bracket to follow the digits. A name like "1 3 Meat Combo" or
+    // "3 Cheese Quesadilla" has a space after the leading digits instead
+    // of a bracket, so cleanLine must leave it alone. (stripLeadingQty
+    // still peels one leading qty token — that's pre-existing behaviour.)
+    // Meanwhile, the post-parse safety net must NOT run stripLeadingQty a
+    // second time on "3 Meat Combo", which would turn it into "Meat Combo".
+    const rawText = [
+      "1 3 Meat Combo $32.00",
+      "1 3 Meat Combo $32.00",
+    ].join("\n");
+
+    const parsed = parseReceiptText(rawText);
+    expect(parsed.line_items.map((i) => i.name)).toEqual([
+      "3 Meat Combo",
+      "3 Meat Combo",
+    ]);
+  });
+
+  it("pairs a bare 'Tax' name row with a subsequent bare price row after the summary started", () => {
+    // Bbox row grouping can split the Tax row into two logical lines
+    // (name on one, price on the next) even after Subtotal has already
+    // been seen. The pre-fix parser dropped the bare 'Tax' line under
+    // the reachedSummary guard and then had no pending to pair the bare
+    // price with — the receipt ended up with tax=0. The fix lets summary
+    // keywords (Tax, Total, Subtotal) become pending even after the
+    // summary has started.
+    const rawText = [
+      "1 Pepsi $3.50",
+      "Subtotal $3.50",
+      "Tax",
+      "$0.28",
+      "Total $3.78",
+    ].join("\n");
+
+    const parsed = parseReceiptText(rawText);
+    expect(parsed.line_items.map((i) => i.name)).toEqual(["Pepsi"]);
+    expect(parsed.subtotal).toBe(3.5);
+    expect(parsed.tax).toBe(0.28);
+    expect(parsed.total).toBe(3.78);
+  });
+
+  it("derives tax from total - subtotal when the tax row is missing entirely", () => {
+    // Last-resort safety net: if Subtotal and Total parse cleanly but
+    // the Tax row was dropped somewhere upstream (bbox filter misfire,
+    // unusual row ordering, etc.), derive tax from the math.
+    const rawText = [
+      "1 Pepsi $3.50",
+      "Subtotal $3.50",
+      "Total $3.78",
+    ].join("\n");
+
+    const parsed = parseReceiptText(rawText);
+    expect(parsed.subtotal).toBe(3.5);
+    expect(parsed.tax).toBe(0.28);
+    expect(parsed.total).toBe(3.78);
+  });
+
+  it("does not derive tax when the subtotal-to-total gap looks like a tip", () => {
+    // If Total includes a tip (gap > 15% of subtotal), we should NOT
+    // falsely promote it to tax.
+    const rawText = [
+      "1 Dinner $100.00",
+      "Subtotal $100.00",
+      "Total $120.00",
+    ].join("\n");
+
+    const parsed = parseReceiptText(rawText);
+    expect(parsed.subtotal).toBe(100);
+    expect(parsed.tax).toBe(0);
+    expect(parsed.total).toBe(120);
+  });
+
   it("does not push the Subtotal row as an item even if leading junk survives cleanLine", () => {
     // Belt-and-suspenders for the post-parse safety net: if some weird
     // leading junk that cleanLine doesn't match still makes it to the

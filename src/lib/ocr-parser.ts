@@ -42,17 +42,32 @@ function classify(name: string): LineKind {
 // Quesadilla" — if that's the actual menu name there's nothing to strip
 // since there's no leading qty anyway; worst case we turn "3 Cheese" into
 // "Cheese", which the user can edit).
-// Strip leading noise characters ("(", ")", "|", "*", etc.) and leading
-// bare decimal bleed-over ("1.99 ") from a reconstructed line. Stray text
-// from a neighbouring receipt photographed alongside the target receipt
-// gets glued to the start of rows when bbox grouping collects same-y
-// words together; we want those gone before we try to classify the line
-// or extract a name.
+// Strip leading noise characters ("(", ")", "|", "*", etc.), leading bare
+// decimal bleed-over ("1.99 "), and leading digit-cluster + closing-bracket
+// bleed ("03) ", "84 ) ") from a reconstructed line. Stray text from a
+// neighbouring receipt photographed alongside the target receipt gets glued
+// to the start of rows when bbox grouping collects same-y words together;
+// we want those gone before we try to classify the line or extract a name.
+// The strips run in a loop so stacked bleed tokens (e.g. ") 03) ") get
+// peeled off in a single pass.
 function cleanLine(line: string): string {
-  return line
-    .replace(/^[^\w$]+/, "")
-    .replace(/^\d+\.\d{2}\s+(?=\S)/, "")
-    .trim();
+  let prev: string;
+  let cur = line;
+  do {
+    prev = cur;
+    cur = cur
+      // Leading non-word chars: ")", "*", "|", etc.
+      .replace(/^[^\w$]+/, "")
+      // Leading bare decimal bleed: "1.99 " before the real line.
+      .replace(/^\d+\.\d{2}\s+(?=\S)/, "")
+      // Leading digit cluster + closing bracket/paren bleed: "03) ",
+      // "84 ) ", "55]" — tail-end fragments of totals from a
+      // neighbouring receipt like "0.03)" that Vision tokenised as
+      // "03" + ")".
+      .replace(/^\d+\s*[)\]}]+\s*/, "")
+      .trim();
+  } while (cur !== prev);
+  return cur;
 }
 
 function stripLeadingQty(name: string): string {
@@ -147,20 +162,41 @@ export function parseReceiptText(rawText: string): ParsedReceipt {
           apply(name, price, kind);
         }
         // else: orphan priced line after summary (e.g. "20% ($203.84)") — drop.
-      } else if (pending && !reachedSummary) {
+      } else if (pending) {
         // Standalone price line; pair with the most recent pending name.
-        apply(pending.name, price, pending.kind);
+        // Post-summary we only honour summary-kind pendings (Tax, Total,
+        // Subtotal) — pairing an item-kind pending with a bare price in
+        // the footer would promote noise like suggested-tip totals to an
+        // item.
+        const allowPair =
+          !reachedSummary ||
+          pending.kind === "subtotal" ||
+          pending.kind === "tax" ||
+          pending.kind === "total";
+        if (allowPair) {
+          apply(pending.name, price, pending.kind);
+        }
         pending = null;
       }
       // else: orphan price line with no candidate name — drop.
       continue;
     }
 
-    // Non-priced lines past the summary are footer noise — drop them.
-    if (reachedSummary) continue;
-
     // No price on this line — it's a name candidate (or something to skip).
     const kind = classify(line);
+
+    // Past the summary we drop footer noise, with one exception: summary
+    // keyword lines (Tax, Total, Subtotal) that appeared without a price
+    // on the same row — usually because bbox row-grouping split the name
+    // and the price into two rows. Keep them as pending so the next bare
+    // priced line can pair with them.
+    if (reachedSummary) {
+      if (kind === "subtotal" || kind === "tax" || kind === "total") {
+        pending = { name: line, kind };
+      }
+      continue;
+    }
+
     if (kind === "skip") {
       // A skip line breaks any continuation chain; drop the pending so it
       // doesn't accidentally attach to an item across a header.
@@ -181,15 +217,28 @@ export function parseReceiptText(rawText: string): ParsedReceipt {
   // keyword (because leading junk confused the in-loop classifier), pull
   // it out of the items list and promote it to the matching summary field.
   // This catches e.g. a ") Subtotal $159.25" row that squeaked past
-  // cleanLine with some other garbage we didn't anticipate.
+  // cleanLine with some other garbage we didn't anticipate. Additionally,
+  // if cleanLine can scrub the stored name (e.g. ") 1 Coffee" → "Coffee"),
+  // write the scrubbed version back so the review screen doesn't show the
+  // leading junk — this is the belt to cleanLine's braces for any bleed
+  // shapes that slipped past the in-loop cleanup.
   for (let i = items.length - 1; i >= 0; i--) {
-    const kind = classify(items[i].name.replace(/^[^\w]+/, "").trim());
+    const precleaned = cleanLine(items[i].name);
+    // Only re-run stripLeadingQty if cleanLine actually peeled something
+    // off — otherwise we'd chew a second "quantity" off names like
+    // "3 Meat Combo" that the main loop already stripped correctly (from
+    // an original "1 3 Meat Combo").
+    const cleaned =
+      precleaned !== items[i].name ? stripLeadingQty(precleaned) : precleaned;
+    const kind = classify(cleaned);
     if (kind === "subtotal" || kind === "tax" || kind === "total") {
       const { price } = items[i];
       items.splice(i, 1);
       if (kind === "subtotal" && subtotal === 0) subtotal = price;
       else if (kind === "tax" && tax === 0) tax = price;
       else if (kind === "total" && total === 0) total = price;
+    } else if (cleaned && cleaned !== items[i].name) {
+      items[i].name = cleaned;
     }
   }
   // Re-number item_order so the indices stay contiguous after removals.
@@ -200,6 +249,20 @@ export function parseReceiptText(rawText: string): ParsedReceipt {
   // If no subtotal was found, sum up the items
   if (subtotal === 0 && items.length > 0) {
     subtotal = items.reduce((sum, item) => sum + item.price, 0);
+  }
+
+  // Belt-and-suspenders: if Subtotal and Total both came through cleanly
+  // but Tax was dropped somewhere (most commonly because bbox row
+  // grouping split "Tax" and its price onto separate rows and neither
+  // half reached a sensible classification), derive tax from the math.
+  // Guard with a ≤15% sanity check — US sales tax maxes out around 11-12%
+  // combined, so anything higher is almost certainly a tip included in
+  // the total, and deriving tax from that would silently over-report.
+  if (tax === 0 && subtotal > 0 && total > subtotal) {
+    const derived = Math.round((total - subtotal) * 100) / 100;
+    if (derived > 0 && derived <= subtotal * 0.15) {
+      tax = derived;
+    }
   }
 
   // If no total was found, compute it
