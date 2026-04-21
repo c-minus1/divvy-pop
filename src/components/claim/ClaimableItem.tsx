@@ -47,9 +47,7 @@ export default function ClaimableItem({
       onUnclaim(myClaim.id);
     } else if (!isClaimed) {
       onClaim(item);
-    }
-    // If claimed by others (not me), also allow tapping to open claim modal
-    else if (!isClaimedByMe) {
+    } else if (!isClaimedByMe) {
       onClaim(item);
     }
   };
@@ -59,32 +57,24 @@ export default function ClaimableItem({
       onClick={handleClick}
       className={`w-full flex items-center justify-between p-4 rounded-xl transition-all active:scale-[0.98] ${
         isClaimedByMe
-          ? "bg-divvy-green/10 border-2 border-divvy-green/30"
+          ? "bg-divvy-green/20 border border-divvy-green/60 text-divvy-ink"
           : isClaimed
-          ? "bg-gray-50 border-2 border-gray-200"
-          : "bg-white border-2 border-white hover:border-divvy-teal/30"
+          ? "bg-[#E5E7EB] border border-black/5 text-divvy-dark/60"
+          : "bg-white border border-white text-divvy-dark hover:border-divvy-teal/40"
       }`}
     >
       <div className="flex flex-col items-start gap-1">
-        <span
-          className={`font-medium ${
-            isClaimedByMe
-              ? "text-divvy-dark"
-              : isClaimed
-              ? "text-divvy-dark/50"
-              : "text-divvy-dark"
-          }`}
-        >
-          {item.name}
-        </span>
+        <span className="font-medium">{item.name}</span>
         {isClaimed && (
-          <span className="text-xs text-divvy-dark/50">{getClaimLabel()}</span>
+          <span className={`text-xs ${isClaimedByMe ? "text-divvy-ink/80" : "text-divvy-dark/50"}`}>
+            {getClaimLabel()}
+          </span>
         )}
       </div>
       <div className="flex items-center gap-2">
         <span
-          className={`font-semibold ${
-            isClaimedByMe ? "text-divvy-green" : "text-divvy-dark/70"
+          className={`font-semibold tabular-nums ${
+            isClaimedByMe ? "text-divvy-green" : ""
           }`}
         >
           ${item.price.toFixed(2)}

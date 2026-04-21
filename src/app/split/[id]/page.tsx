@@ -18,7 +18,6 @@ export default function SplitPage({ params }: { params: Promise<{ id: string }> 
   const router = useRouter();
   const { session, loading } = useSession(id);
 
-  // Navigate to claim page when session becomes active
   useEffect(() => {
     if (session?.status === "active") {
       router.push(`/claim/${id}`);
@@ -46,7 +45,7 @@ export default function SplitPage({ params }: { params: Promise<{ id: string }> 
     return (
       <PageContainer>
         <div className="flex flex-col items-center justify-center flex-1 gap-4">
-          <p className="text-divvy-dark/70">Session not found.</p>
+          <p className="font-pixel text-xs text-divvy-ink-dim">Session not found.</p>
           <Button variant="ghost" onClick={() => router.push("/")}>
             Go home
           </Button>
@@ -55,12 +54,22 @@ export default function SplitPage({ params }: { params: Promise<{ id: string }> 
     );
   }
 
+  const canStart = session.participants.length >= 2;
+
   return (
     <PageContainer>
-      <div className="flex flex-col items-center gap-6">
-        <Logo size="sm" />
+      <div className="flex flex-col gap-6">
+        <div className="flex items-center justify-between">
+          <Logo size="sm" />
+          <div className="flex items-center gap-3">
+            <span className="w-px h-6 bg-white/20" aria-hidden />
+            <span className="font-pixel text-[10px] text-divvy-ink tracking-wide">
+              Live session
+            </span>
+          </div>
+        </div>
 
-        <h2 className="text-xl font-semibold text-divvy-dark text-center">
+        <h2 className="font-pixel text-xl text-divvy-ink text-center">
           Share with your group
         </h2>
 
@@ -68,13 +77,8 @@ export default function SplitPage({ params }: { params: Promise<{ id: string }> 
         <ShareLink sessionId={id} />
         <ParticipantList participants={session.participants} />
 
-        <Button
-          onClick={handleStartSplitting}
-          disabled={session.participants.length < 2}
-        >
-          {session.participants.length < 2
-            ? "Waiting for others to join..."
-            : "Start Splitting"}
+        <Button onClick={handleStartSplitting} disabled={!canStart}>
+          {canStart ? "Start Splitting" : "Waiting for others..."}
         </Button>
       </div>
     </PageContainer>

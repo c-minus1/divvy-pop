@@ -51,7 +51,7 @@ export default function ClaimModal({
     setSelectedIds((prev) =>
       prev.includes(pid)
         ? pid === currentUserId
-          ? prev // Can't remove yourself
+          ? prev
           : prev.filter((id) => id !== pid)
         : [...prev, pid]
     );
@@ -71,17 +71,17 @@ export default function ClaimModal({
   return (
     <Modal isOpen={isOpen} onClose={resetAndClose} title={item.name}>
       <div className="flex flex-col gap-3">
-        <p className="text-lg font-semibold text-divvy-dark mb-2">
+        <p className="text-2xl font-bold text-divvy-dark mb-2 tabular-nums">
           ${item.price.toFixed(2)}
         </p>
 
         {mode === "choose" && (
           <>
             <Button onClick={handleJustMe}>Just Me</Button>
-            <Button variant="ghost" onClick={() => setMode("split")}>
+            <Button variant="ghost" onClick={() => setMode("split")} className="!bg-black/5 !text-divvy-dark !border-black/10">
               Split with Others
             </Button>
-            <Button variant="ghost" onClick={handleSharedByAll}>
+            <Button variant="ghost" onClick={handleSharedByAll} className="!bg-black/5 !text-divvy-dark !border-black/10">
               Shared by All
             </Button>
           </>
@@ -89,7 +89,7 @@ export default function ClaimModal({
 
         {mode === "split" && (
           <>
-            <p className="text-sm text-divvy-dark/60 mb-1">
+            <p className="text-sm text-divvy-dark/70 mb-1">
               Select who&apos;s sharing this item:
             </p>
             <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -98,8 +98,8 @@ export default function ClaimModal({
                   key={p.id}
                   className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${
                     selectedIds.includes(p.id)
-                      ? "bg-divvy-teal/10 border-2 border-divvy-teal/30"
-                      : "bg-gray-50 border-2 border-transparent"
+                      ? "bg-divvy-teal/20 border-2 border-divvy-teal/60"
+                      : "bg-white/60 border-2 border-transparent"
                   }`}
                 >
                   <input
@@ -116,14 +116,14 @@ export default function ClaimModal({
               ))}
             </div>
 
-            <div className="bg-gray-50 rounded-xl p-3 text-center mt-2">
-              <span className="text-sm text-divvy-dark/60">
+            <div className="bg-white/60 rounded-xl p-3 text-center mt-2">
+              <span className="text-sm text-divvy-dark/70 tabular-nums">
                 ${pricePerPerson.toFixed(2)} per person
               </span>
             </div>
 
             <div className="flex gap-2 mt-2">
-              <Button variant="ghost" onClick={() => setMode("choose")}>
+              <Button variant="ghost" onClick={() => setMode("choose")} className="!bg-black/5 !text-divvy-dark !border-black/10">
                 Back
               </Button>
               <Button onClick={handleSplitConfirm} disabled={selectedIds.length < 2}>

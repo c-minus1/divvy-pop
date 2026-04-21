@@ -6,10 +6,10 @@ import PageContainer from "@/components/layout/PageContainer";
 import Logo from "@/components/ui/Logo";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import Input from "@/components/ui/Input";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import LineItemRow from "@/components/receipt/LineItemRow";
 import ReceiptTotals from "@/components/receipt/ReceiptTotals";
+import NameEntryModal from "@/components/receipt/NameEntryModal";
 import { getReceipt, updateReceipt, createSession } from "@/lib/firestore";
 import { generateSessionId, getExpiresAt, setParticipantId } from "@/lib/session-utils";
 import type { Receipt, LineItem, Session } from "@/types";
@@ -21,10 +21,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const [hostName, setHostName] = useState("");
-  const [showNameInput, setShowNameInput] = useState(false);
-  // Read the transient parse warning synchronously on mount (lazy
-  // initializer) so we don't trigger a cascading render from an effect.
+  const [nameModalOpen, setNameModalOpen] = useState(false);
   const [parseWarning] = useState<string>(() => {
     if (typeof window === "undefined") return "";
     try {
@@ -58,7 +55,7 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
     return (
       <PageContainer>
         <div className="flex flex-col items-center justify-center flex-1 gap-4">
-          <p className="text-divvy-dark/70">Receipt not found.</p>
+          <p className="font-pixel text-xs text-divvy-ink-dim">Receipt not found.</p>
           <Button variant="ghost" onClick={() => router.push("/scan")}>
             Scan a new receipt
           </Button>
@@ -112,24 +109,15 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
     });
   };
 
-  const handleConfirm = async () => {
-    if (!showNameInput) {
-      setShowNameInput(true);
-      return;
-    }
-
-    if (!hostName.trim()) return;
-
+  const handleCreateSession = async (hostName: string) => {
     setSaving(true);
     setSaveError("");
     try {
-      // Update receipt status
       await updateReceipt(receipt.id, {
         ...receipt,
         status: "confirmed",
       });
 
-      // Create session
       const sessionId = generateSessionId();
       const now = Date.now();
       const hostParticipantId = crypto.randomUUID();
@@ -141,14 +129,13 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
         expires_at: getExpiresAt(now),
         status: "waiting",
         participants: [
-          { id: hostParticipantId, name: hostName.trim(), joined_at: now },
+          { id: hostParticipantId, name: hostName, joined_at: now },
         ],
       };
 
       await createSession(session);
       await updateReceipt(receipt.id, { session_id: sessionId });
 
-      // Store host identity
       setParticipantId(sessionId, hostParticipantId);
 
       router.push(`/split/${sessionId}`);
@@ -163,73 +150,68 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
   return (
     <PageContainer>
       <div className="flex flex-col gap-6">
-        <Logo size="sm" />
-        <h2 className="text-xl font-semibold text-divvy-dark text-center">
-          Review your receipt
+        <div className="self-start">
+          <Logo size="sm" />
+        </div>
+        <h2 className="font-pixel text-xl text-divvy-ink text-center">
+          Review the bill
         </h2>
 
         {parseWarning && (
-          <Card className="!bg-amber-50 border border-amber-200 w-full">
-            <p className="text-amber-800 text-sm">{parseWarning}</p>
+          <Card className="border border-amber-400/30 bg-amber-500/10 w-full">
+            <p className="text-amber-200 text-sm">{parseWarning}</p>
           </Card>
         )}
 
-        <Card>
-          <div className="flex flex-col gap-3">
-            {receipt.line_items.map((item, index) => (
-              <LineItemRow
-                key={item.id}
-                name={item.name}
-                price={item.price}
-                onNameChange={(name) => updateItem(index, "name", name)}
-                onPriceChange={(price) => updateItem(index, "price", price)}
-                onDelete={() => removeItem(index)}
-              />
-            ))}
-            <button
-              onClick={addItem}
-              className="text-sm text-divvy-teal font-medium py-2 hover:underline"
-            >
-              + Add Item
-            </button>
-          </div>
-        </Card>
-
-        <Card>
-          <ReceiptTotals
-            subtotal={receipt.subtotal}
-            tax={receipt.tax}
-            taxRate={receipt.tax_rate}
-            tip={receipt.tip}
-            tipRate={receipt.tip_rate}
-            total={receipt.total}
-            onTaxChange={handleTaxChange}
-            onTipChange={handleTipChange}
-          />
-        </Card>
-
-        {showNameInput && (
-          <Card>
-            <Input
-              label="Your name"
-              placeholder="Enter your name"
-              value={hostName}
-              onChange={(e) => setHostName(e.target.value)}
-              autoFocus
+        <div className="flex flex-col gap-3">
+          {receipt.line_items.map((item, index) => (
+            <LineItemRow
+              key={item.id}
+              index={index}
+              name={item.name}
+              price={item.price}
+              onNameChange={(name) => updateItem(index, "name", name)}
+              onPriceChange={(price) => updateItem(index, "price", price)}
+              onDelete={() => removeItem(index)}
             />
-          </Card>
-        )}
+          ))}
+          <button
+            onClick={addItem}
+            className="font-pixel text-[10px] text-divvy-teal py-2 self-start tracking-wide underline underline-offset-4"
+          >
+            + Add Item
+          </button>
+        </div>
+
+        <ReceiptTotals
+          subtotal={receipt.subtotal}
+          tax={receipt.tax}
+          taxRate={receipt.tax_rate}
+          tip={receipt.tip}
+          tipRate={receipt.tip_rate}
+          total={receipt.total}
+          onTaxChange={handleTaxChange}
+          onTipChange={handleTipChange}
+        />
 
         {saveError && (
-          <Card className="!bg-amber-50 border border-amber-200 w-full">
-            <p className="text-amber-800 text-sm">{saveError}</p>
+          <Card className="border border-amber-400/30 bg-amber-500/10 w-full">
+            <p className="text-amber-200 text-sm">{saveError}</p>
           </Card>
         )}
 
-        <Button onClick={handleConfirm} loading={saving}>
-          {showNameInput ? "Create Session" : "Looks Good"}
+        <Button onClick={() => setNameModalOpen(true)}>
+          Ready to share
         </Button>
       </div>
+
+      <NameEntryModal
+        isOpen={nameModalOpen}
+        loading={saving}
+        error={saveError}
+        onClose={() => !saving && setNameModalOpen(false)}
+        onSubmit={handleCreateSession}
+      />
     </PageContainer>
   );
 }

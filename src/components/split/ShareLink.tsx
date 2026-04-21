@@ -18,7 +18,6 @@ export default function ShareLink({ sessionId }: ShareLinkProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback
       const textArea = document.createElement("textarea");
       textArea.value = joinUrl;
       document.body.appendChild(textArea);
@@ -49,7 +48,7 @@ export default function ShareLink({ sessionId }: ShareLinkProps) {
   return (
     <div className="flex flex-col gap-2 w-full">
       <div className="flex gap-2">
-        <div className="flex-1 bg-white/50 rounded-xl px-4 py-3 text-sm text-divvy-dark/70 truncate border border-white/60">
+        <div className="flex-1 bg-white/[0.06] rounded-xl px-4 py-3 text-sm text-divvy-ink-dim truncate border border-white/15">
           {joinUrl}
         </div>
         <Button variant="ghost" fullWidth={false} onClick={handleCopy} className="!px-4">

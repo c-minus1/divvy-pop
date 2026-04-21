@@ -79,7 +79,7 @@ export default function ManualEntryForm({ onSubmit, loading }: ManualEntryFormPr
 
   return (
     <div className="flex flex-col gap-4 w-full">
-      <h3 className="font-semibold text-divvy-dark text-lg">Enter items manually</h3>
+      <h3 className="font-pixel text-base text-divvy-ink">Enter items manually</h3>
 
       {items.map((item, index) => (
         <Card key={index} className="!p-3">
@@ -104,7 +104,7 @@ export default function ManualEntryForm({ onSubmit, loading }: ManualEntryFormPr
             {items.length > 1 && (
               <button
                 onClick={() => removeItem(index)}
-                className="touch-target flex items-center justify-center text-red-400 hover:text-red-600 text-lg shrink-0"
+                className="touch-target flex items-center justify-center text-red-400 hover:text-red-500 text-lg shrink-0"
                 aria-label="Remove item"
               >
                 &times;
@@ -138,7 +138,7 @@ export default function ManualEntryForm({ onSubmit, loading }: ManualEntryFormPr
           />
         </div>
 
-        <div className="mt-4 space-y-1 text-sm text-divvy-dark/70">
+        <div className="mt-4 space-y-1 text-sm text-divvy-ink-dim">
           <div className="flex justify-between">
             <span>Subtotal</span>
             <span>${subtotal.toFixed(2)}</span>
@@ -151,7 +151,7 @@ export default function ManualEntryForm({ onSubmit, loading }: ManualEntryFormPr
             <span>Tip</span>
             <span>${tip.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between font-semibold text-divvy-dark text-base pt-2 border-t border-gray-200">
+          <div className="flex justify-between font-semibold text-divvy-ink text-base pt-2 border-t border-white/10">
             <span>Total</span>
             <span>${total.toFixed(2)}</span>
           </div>

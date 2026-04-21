@@ -1,7 +1,5 @@
 "use client";
 
-import Input from "@/components/ui/Input";
-
 interface ReceiptTotalsProps {
   subtotal: number;
   tax: number;
@@ -12,6 +10,11 @@ interface ReceiptTotalsProps {
   onTaxChange: (tax: number, taxRate: number) => void;
   onTipChange: (tip: number, tipRate: number) => void;
 }
+
+const chipBase =
+  "rounded-xl px-4 py-2 bg-divvy-teal text-divvy-dark flex items-center";
+const chipField =
+  "w-full bg-transparent focus:outline-none placeholder:text-divvy-dark/40";
 
 export default function ReceiptTotals({
   subtotal,
@@ -28,87 +31,67 @@ export default function ReceiptTotals({
     onTaxChange(Math.round(newTax * 100) / 100, rate);
   };
 
-  const handleTaxAmountChange = (amount: number) => {
-    const newRate = subtotal > 0 ? (amount / subtotal) * 100 : 0;
-    onTaxChange(amount, Math.round(newRate * 1000) / 1000);
-  };
-
   const handleTipRateChange = (rate: number) => {
     const newTip = subtotal * (rate / 100);
     onTipChange(Math.round(newTip * 100) / 100, rate);
   };
 
-  const handleTipAmountChange = (amount: number) => {
-    const newRate = subtotal > 0 ? (amount / subtotal) * 100 : 0;
-    onTipChange(amount, Math.round(newRate * 1000) / 1000);
-  };
-
   return (
-    <div className="space-y-3">
-      <div className="flex justify-between items-center text-divvy-dark/70">
-        <span className="text-sm">Subtotal</span>
-        <span className="font-medium">${subtotal.toFixed(2)}</span>
-      </div>
-
-      <div className="flex justify-between items-center gap-3">
-        <span className="text-sm text-divvy-dark/70 shrink-0">Tax</span>
-        <div className="flex gap-2 items-center">
-          <div className="w-20">
-            <Input
-              type="number"
-              step="0.001"
-              min="0"
-              value={taxRate.toString()}
-              onChange={(e) => handleTaxRateChange(parseFloat(e.target.value) || 0)}
-              className="!py-1.5 !px-2 text-sm text-right"
-            />
-          </div>
-          <span className="text-xs text-divvy-dark/50">%</span>
-          <div className="w-24">
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={tax.toFixed(2)}
-              onChange={(e) => handleTaxAmountChange(parseFloat(e.target.value) || 0)}
-              className="!py-1.5 !px-2 text-sm text-right"
-            />
-          </div>
+    <div className="flex flex-col gap-2">
+      {/* Subtotal */}
+      <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+        <div className={`${chipBase} font-semibold`}>Subtotal</div>
+        <div className={`${chipBase} justify-end w-32 font-semibold tabular-nums`}>
+          $ {subtotal.toFixed(2)}
         </div>
       </div>
 
-      <div className="flex justify-between items-center gap-3">
-        <span className="text-sm text-divvy-dark/70 shrink-0">Tip</span>
-        <div className="flex gap-2 items-center">
-          <div className="w-20">
-            <Input
-              type="number"
-              step="0.5"
-              min="0"
-              value={tipRate.toString()}
-              onChange={(e) => handleTipRateChange(parseFloat(e.target.value) || 0)}
-              className="!py-1.5 !px-2 text-sm text-right"
-            />
-          </div>
-          <span className="text-xs text-divvy-dark/50">%</span>
-          <div className="w-24">
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={tip.toFixed(2)}
-              onChange={(e) => handleTipAmountChange(parseFloat(e.target.value) || 0)}
-              className="!py-1.5 !px-2 text-sm text-right"
-            />
-          </div>
+      {/* Tax */}
+      <div className="grid grid-cols-[1fr_5rem_auto] gap-2 items-center">
+        <div className={`${chipBase}`}>Tax</div>
+        <div className={`${chipBase}`}>
+          <input
+            type="number"
+            step="0.001"
+            min="0"
+            value={taxRate.toString()}
+            onChange={(e) => handleTaxRateChange(parseFloat(e.target.value) || 0)}
+            className={`${chipField} text-right tabular-nums`}
+            aria-label="Tax percentage"
+          />
+          <span className="ml-1 text-divvy-dark/70">%</span>
+        </div>
+        <div className={`${chipBase} justify-end w-32 tabular-nums`}>
+          $ {tax.toFixed(2)}
         </div>
       </div>
 
-      <div className="flex justify-between items-center pt-3 border-t border-gray-200">
-        <span className="font-semibold text-divvy-dark">Total</span>
-        <span className="font-bold text-lg text-divvy-dark">
-          ${total.toFixed(2)}
-        </span>
+      {/* Tip */}
+      <div className="grid grid-cols-[1fr_5rem_auto] gap-2 items-center">
+        <div className={`${chipBase}`}>Tip</div>
+        <div className={`${chipBase}`}>
+          <input
+            type="number"
+            step="0.5"
+            min="0"
+            value={tipRate.toString()}
+            onChange={(e) => handleTipRateChange(parseFloat(e.target.value) || 0)}
+            className={`${chipField} text-right tabular-nums`}
+            aria-label="Tip percentage"
+          />
+          <span className="ml-1 text-divvy-dark/70">%</span>
+        </div>
+        <div className={`${chipBase} justify-end w-32 tabular-nums`}>
+          $ {tip.toFixed(2)}
+        </div>
+      </div>
+
+      {/* Total */}
+      <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+        <div className={`${chipBase} bg-divvy-cyan font-bold`}>Total</div>
+        <div className={`${chipBase} bg-divvy-cyan justify-end w-32 font-bold tabular-nums`}>
+          $ {total.toFixed(2)}
+        </div>
       </div>
     </div>
   );

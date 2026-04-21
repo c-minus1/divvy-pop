@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
+import { Camera } from "lucide-react";
 import Button from "@/components/ui/Button";
 
 interface CameraCaptureProps {
@@ -66,7 +67,7 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
           <img
             src={preview}
             alt="Receipt preview"
-            className="w-full max-h-80 object-contain bg-gray-50"
+            className="w-full max-h-80 object-contain bg-black/40"
           />
           <button
             onClick={() => {
@@ -74,25 +75,30 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
               if (cameraInputRef.current) cameraInputRef.current.value = "";
               if (galleryInputRef.current) galleryInputRef.current.value = "";
             }}
-            className="absolute top-3 right-3 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white text-sm"
+            className="absolute top-3 right-3 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center text-white text-sm"
             aria-label="Remove photo"
           >
             &times;
           </button>
         </div>
       ) : (
-        <div
-          className="w-full aspect-[3/4] rounded-2xl border-2 border-dashed border-divvy-teal/40 bg-white/30 flex flex-col items-center justify-center gap-4 cursor-pointer hover:bg-white/50 transition-colors"
+        <button
+          type="button"
+          className="w-full aspect-[3/4] rounded-2xl border border-divvy-green/30 flex flex-col items-center justify-center gap-4 transition-all active:scale-[0.99] hover:border-divvy-green/60"
+          style={{
+            background:
+              "radial-gradient(ellipse at center, rgba(34,197,94,0.22) 0%, rgba(20,184,166,0.10) 45%, rgba(6,20,10,0.0) 80%)",
+          }}
           onClick={() => cameraInputRef.current?.click()}
+          aria-label="Open camera"
         >
-          <div className="text-5xl">📸</div>
-          <p className="text-divvy-dark/60 font-medium">
-            Tap to take a photo
+          <Camera size={56} strokeWidth={1.5} className="text-divvy-ink" />
+          <p className="font-pixel text-xs text-divvy-ink text-center px-6 leading-relaxed">
+            Tap here to open
+            <br />
+            your camera
           </p>
-          <p className="text-divvy-dark/40 text-sm">
-            or upload a receipt image
-          </p>
-        </div>
+        </button>
       )}
 
       <input
@@ -114,12 +120,8 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
       />
 
       {!preview && (
-        <Button
-          variant="ghost"
-          onClick={() => galleryInputRef.current?.click()}
-          className="mt-2"
-        >
-          Choose from gallery
+        <Button onClick={() => galleryInputRef.current?.click()}>
+          Upload from library
         </Button>
       )}
     </div>

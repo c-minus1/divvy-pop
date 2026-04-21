@@ -19,13 +19,13 @@ export default function Button({
   ...props
 }: ButtonProps) {
   const base =
-    "touch-target flex items-center justify-center px-6 py-3 rounded-2xl font-semibold text-base transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none";
+    "touch-target font-pixel tracking-wide flex items-center justify-center px-6 py-3 rounded-2xl text-sm transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none";
 
   const variants = {
     primary:
-      "bg-gradient-to-r from-divvy-green via-divvy-teal to-divvy-cyan text-white shadow-lg hover:shadow-xl",
+      "bg-gradient-to-r from-divvy-green via-divvy-teal to-divvy-cyan text-divvy-dark shadow-lg hover:shadow-xl",
     ghost:
-      "bg-white/40 text-divvy-dark hover:bg-white/60 border border-white/50",
+      "bg-white/5 text-divvy-ink hover:bg-white/10 border border-white/15",
     danger:
       "bg-red-500 text-white hover:bg-red-600",
   };
