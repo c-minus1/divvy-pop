@@ -59,7 +59,7 @@ export default function ClaimPage({ params }: { params: Promise<{ id: string }> 
     return (
       <PageContainer>
         <div className="flex flex-col items-center justify-center flex-1 gap-4">
-          <p className="text-divvy-dark/70">Session not found.</p>
+          <p className="font-pixel text-xs text-divvy-ink-dim">Session not found.</p>
           <Button variant="ghost" onClick={() => router.push("/")}>
             Go home
           </Button>
@@ -121,8 +121,16 @@ export default function ClaimPage({ params }: { params: Promise<{ id: string }> 
 
   return (
     <PageContainer>
-      <div className="flex flex-col gap-4 pb-24">
-        <Logo size="sm" />
+      <div className="flex flex-col gap-4 pb-28">
+        <div className="flex items-center justify-between">
+          <Logo size="sm" />
+          <div className="flex items-center gap-3">
+            <span className="w-px h-6 bg-white/20" aria-hidden />
+            <span className="font-pixel text-[10px] text-divvy-ink tracking-wide">
+              Live session
+            </span>
+          </div>
+        </div>
 
         <ClaimProgress
           claimed={claimedItemCount}

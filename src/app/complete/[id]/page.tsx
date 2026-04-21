@@ -34,7 +34,6 @@ export default function CompletePage({ params }: { params: Promise<{ id: string 
   const myTotal = currentUserId ? shares.get(currentUserId) : null;
   const currentParticipant = session?.participants.find((p) => p.id === currentUserId);
 
-  // Mark session as complete
   useEffect(() => {
     if (session && session.status !== "complete" && receipt) {
       updateSession(id, { status: "complete" });
@@ -58,7 +57,7 @@ export default function CompletePage({ params }: { params: Promise<{ id: string 
     return (
       <PageContainer>
         <div className="flex flex-col items-center justify-center flex-1 gap-4">
-          <p className="text-divvy-dark/70">Session not found.</p>
+          <p className="font-pixel text-xs text-divvy-ink-dim">Session not found.</p>
           <Button variant="ghost" onClick={() => router.push("/")}>
             Go home
           </Button>
@@ -72,14 +71,17 @@ export default function CompletePage({ params }: { params: Promise<{ id: string 
       <div className="flex flex-col gap-6">
         <Logo size="sm" />
 
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-divvy-dark">
-            Your share
+        <div className="text-center flex flex-col gap-4 pt-2">
+          <h2 className="font-pixel text-lg text-divvy-ink tracking-wider">
+            SESSION COMPLETE
           </h2>
-          <p className="text-4xl font-bold text-divvy-gradient mt-2 font-pixel">
-            ${myTotal.total.toFixed(2)}
+          <p className="font-pixel text-3xl text-divvy-gradient tabular-nums leading-tight">
+            YOUR TOTAL
+            <br />${myTotal.total.toFixed(2)}
           </p>
         </div>
+
+        <PaymentLinks amount={myTotal.total} />
 
         <PersonBreakdown
           personId={currentUserId}
@@ -89,17 +91,18 @@ export default function CompletePage({ params }: { params: Promise<{ id: string 
           total={myTotal}
         />
 
-        <PaymentLinks amount={myTotal.total} />
-
         <GroupSummary
           participants={session.participants}
           shares={shares}
           receiptTotal={receipt.total}
         />
 
-        <Button variant="ghost" onClick={() => router.push("/")}>
-          Done
-        </Button>
+        <button
+          onClick={() => router.push(`/receipt/${receipt.id}`)}
+          className="font-pixel text-xs text-divvy-ink-dim tracking-wide text-center py-2 hover:text-divvy-ink transition-colors"
+        >
+          REVIEW RECEIPT
+        </button>
       </div>
     </PageContainer>
   );

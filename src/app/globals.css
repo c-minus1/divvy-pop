@@ -1,26 +1,39 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-divvy-yellow: #FFF0A0;
-  --color-divvy-pink: #FFB0E0;
+  /* Dark surface palette (new default) */
+  --color-divvy-bg:        #06140A;
+  --color-divvy-bg-2:      #0E2415;
+  --color-divvy-surface:   #E5E7EB;
+  --color-divvy-surface-2: #FFFFFF;
+
+  /* Accent palette (unchanged) */
   --color-divvy-green: #22C55E;
-  --color-divvy-teal: #14B8A6;
-  --color-divvy-cyan: #06B6D4;
-  --color-divvy-dark: #1a1a2e;
+  --color-divvy-teal:  #14B8A6;
+  --color-divvy-cyan:  #06B6D4;
+
+  /* Text */
+  --color-divvy-dark:    #0A0A0A;
+  --color-divvy-ink:     #F5F5F5;
+  --color-divvy-ink-dim: rgba(245, 245, 245, 0.65);
 }
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: #06140A;
+  color: var(--color-divvy-ink);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 .font-pixel {
   font-family: 'Press Start 2P', monospace;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
 }
 
 .bg-divvy-gradient {
-  background: linear-gradient(135deg, var(--color-divvy-yellow), var(--color-divvy-pink));
+  background: radial-gradient(ellipse at top, #0E2415 0%, #06140A 65%);
 }
 
 .text-divvy-gradient {
@@ -50,8 +63,24 @@ body {
   animation: slide-up 0.3s ease-out;
 }
 
+@keyframes fade-scale-in {
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-fade-scale-in {
+  animation: fade-scale-in 0.2s ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .animate-slide-up {
+  .animate-slide-up,
+  .animate-fade-scale-in {
     animation: none;
   }
 }

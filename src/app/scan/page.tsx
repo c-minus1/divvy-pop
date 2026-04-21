@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import PageContainer from "@/components/layout/PageContainer";
 import Logo from "@/components/ui/Logo";
 import Card from "@/components/ui/Card";
-import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import CameraCapture from "@/components/scan/CameraCapture";
 import ManualEntryForm from "@/components/scan/ManualEntryForm";
 import { createReceipt } from "@/lib/firestore";
@@ -38,7 +37,6 @@ export default function ScanPage() {
         return;
       }
 
-      // Create receipt from OCR results
       const receiptId = crypto.randomUUID();
       const lineItems: LineItem[] = data.line_items.map(
         (item: { name: string; price: number; item_order: number }, index: number) => ({
@@ -73,8 +71,6 @@ export default function ScanPage() {
         setStatus("manual");
         return;
       }
-      // Pass the parse warning (if any) to the review screen via
-      // sessionStorage — it's a transient UI hint, not persisted state.
       if (typeof data.warning === "string" && data.warning) {
         try {
           sessionStorage.setItem(`divvy:parse-warning:${receiptId}`, data.warning);
@@ -137,44 +133,45 @@ export default function ScanPage() {
 
   return (
     <PageContainer>
-      <div className="flex flex-col items-center gap-6">
-        <Logo size="sm" />
+      <div className="flex flex-col gap-6">
+        <div className="self-start">
+          <Logo size="sm" />
+        </div>
 
         {status === "capture" && (
-          <>
-            <h2 className="text-xl font-semibold text-divvy-dark">
-              Scan your receipt
+          <div className="flex flex-col items-center gap-6">
+            <h2 className="font-pixel text-xl text-divvy-ink text-center">
+              Scan your bill
             </h2>
             <CameraCapture onCapture={handleCapture} />
             <button
               onClick={() => setStatus("manual")}
-              className="text-sm text-divvy-teal font-medium underline underline-offset-2"
+              className="font-pixel text-[10px] text-divvy-ink-dim underline underline-offset-4 tracking-wide"
             >
               Enter items manually instead
             </button>
-          </>
+          </div>
         )}
 
         {status === "scanning" && (
-          <Card className="flex flex-col items-center gap-4 py-12 w-full">
-            <LoadingSpinner size="lg" className="text-divvy-teal" />
-            <p className="text-divvy-dark/70 font-medium">
-              Scanning your receipt...
+          <div className="flex flex-1 items-center justify-center min-h-[60vh]">
+            <p className="font-pixel text-xl text-divvy-green text-center">
+              Scanning...
             </p>
-          </Card>
+          </div>
         )}
 
         {status === "manual" && (
           <>
             {errorMessage && (
-              <Card className="!bg-amber-50 border border-amber-200 w-full">
-                <p className="text-amber-800 text-sm">{errorMessage}</p>
+              <Card className="border border-amber-400/30 bg-amber-500/10 text-amber-200 w-full">
+                <p className="text-sm">{errorMessage}</p>
                 {rawText && (
                   <details className="mt-2">
-                    <summary className="text-xs text-amber-800/70 cursor-pointer">
+                    <summary className="text-xs text-amber-200/70 cursor-pointer">
                       Show what the camera read
                     </summary>
-                    <pre className="mt-2 text-xs text-amber-900 whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
+                    <pre className="mt-2 text-xs text-amber-100 whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
                       {rawText}
                     </pre>
                   </details>
@@ -187,10 +184,10 @@ export default function ScanPage() {
 
         {status === "error" && (
           <Card className="flex flex-col items-center gap-4 w-full">
-            <p className="text-red-600">{errorMessage}</p>
+            <p className="text-red-400">{errorMessage}</p>
             <button
               onClick={() => setStatus("capture")}
-              className="text-divvy-teal font-medium underline"
+              className="font-pixel text-xs text-divvy-teal underline underline-offset-4"
             >
               Try again
             </button>

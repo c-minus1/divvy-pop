@@ -20,7 +20,6 @@ export default function JoinPage({ params }: { params: Promise<{ id: string }> }
   const [joining, setJoining] = useState(false);
   const [joined, setJoined] = useState(false);
 
-  // Check if user already joined this session
   useEffect(() => {
     const existingId = getParticipantId(id);
     if (existingId && session) {
@@ -31,7 +30,6 @@ export default function JoinPage({ params }: { params: Promise<{ id: string }> }
     }
   }, [id, session]);
 
-  // Navigate when session becomes active
   useEffect(() => {
     if (joined && session?.status === "active") {
       router.push(`/claim/${id}`);
@@ -56,7 +54,7 @@ export default function JoinPage({ params }: { params: Promise<{ id: string }> }
       <PageContainer>
         <div className="flex flex-col items-center justify-center flex-1 gap-4">
           <Logo size="sm" />
-          <p className="text-divvy-dark/70">Session not found.</p>
+          <p className="font-pixel text-xs text-divvy-ink-dim">Session not found.</p>
           <Button variant="ghost" onClick={() => router.push("/")}>
             Go home
           </Button>
@@ -70,7 +68,7 @@ export default function JoinPage({ params }: { params: Promise<{ id: string }> }
       <PageContainer>
         <div className="flex flex-col items-center justify-center flex-1 gap-4">
           <Logo size="sm" />
-          <p className="text-divvy-dark/70">This session has expired.</p>
+          <p className="font-pixel text-xs text-divvy-ink-dim">This session has expired.</p>
           <Button variant="ghost" onClick={() => router.push("/")}>
             Go home
           </Button>
@@ -86,10 +84,12 @@ export default function JoinPage({ params }: { params: Promise<{ id: string }> }
           <Logo size="sm" />
           <Card className="flex flex-col items-center gap-4 py-8 w-full">
             <LoadingSpinner size="md" className="text-divvy-teal" />
-            <p className="text-divvy-dark font-medium">
-              Waiting for host to start splitting...
+            <p className="font-pixel text-xs text-divvy-ink text-center leading-relaxed">
+              Waiting for host to
+              <br />
+              start splitting...
             </p>
-            <p className="text-sm text-divvy-dark/50">
+            <p className="font-pixel text-[10px] text-divvy-ink-dim">
               {session.participants.length} people have joined
             </p>
           </Card>
@@ -123,7 +123,7 @@ export default function JoinPage({ params }: { params: Promise<{ id: string }> }
         <Logo size="md" showTagline />
 
         <Card className="w-full">
-          <h2 className="text-lg font-semibold text-divvy-dark mb-4 text-center">
+          <h2 className="font-pixel text-base text-divvy-ink mb-4 text-center">
             Join the split
           </h2>
           <div className="flex flex-col gap-4">
@@ -141,7 +141,7 @@ export default function JoinPage({ params }: { params: Promise<{ id: string }> }
           </div>
         </Card>
 
-        <p className="text-sm text-divvy-dark/50">
+        <p className="font-pixel text-[10px] text-divvy-ink-dim">
           {session.participants.length} already in this session
         </p>
       </div>
