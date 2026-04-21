@@ -1,24 +1,143 @@
 rules_version = '2';
 
-// MVP rules for Divvy.
+// Security rules for Divvy.
 //
-// The app is designed with no user accounts (see CLAUDE.md: "Auth: None for
-// MVP. Users identify by name only within a session."). Anyone with a session
-// code can read and write to the three collections used by the app. Sessions
-// are expected to expire after 24 hours; configure Firestore TTL policies on
-// `sessions.expires_at` and `receipts.scanned_at` to auto-clean stale data.
+// The app has no auth (see CLAUDE.md). Access control therefore relies on:
+//   1. Knowing the document ID (session code, receipt id, claim id), and
+//   2. Per-write schema/size validation so a hostile client can't poison
+//      the collection or inflate it cheaply.
+//
+// Single-document reads are open (you need the ID), but collection-wide
+// `list` queries are blocked on sessions and receipts so the database
+// can't be enumerated. Sessions are expected to expire after 24 hours;
+// configure a Firestore TTL policy on `sessions.expires_at` and
+// `receipts.scanned_at` for automatic cleanup.
 //
 // Deploy with:  firebase deploy --only firestore:rules
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // --- Helpers ------------------------------------------------------------
+
+    function inTTL(expiresAt) {
+      return expiresAt is number && expiresAt > request.time.toMillis();
+    }
+
+    function isValidSession(d) {
+      return d.keys().hasOnly([
+          'id', 'receipt_id', 'created_at', 'expires_at', 'status', 'participants'
+        ])
+        && d.id is string && d.id.size() >= 4 && d.id.size() <= 32
+        && d.receipt_id is string && d.receipt_id.size() <= 64
+        && d.created_at is number
+        && d.expires_at is number
+        && d.expires_at <= d.created_at + 25 * 60 * 60 * 1000
+        && d.status in ['waiting', 'active', 'complete']
+        && d.participants is list
+        && d.participants.size() <= 50;
+    }
+
+    function isValidReceipt(d) {
+      return d.keys().hasOnly([
+          'id', 'image_url', 'scanned_at', 'line_items', 'subtotal',
+          'tax', 'tax_rate', 'tip', 'tip_rate', 'total', 'status', 'session_id'
+        ])
+        && d.id is string && d.id.size() <= 64
+        && d.image_url is string && d.image_url.size() <= 2048
+        && d.scanned_at is number
+        && d.line_items is list && d.line_items.size() <= 200
+        && d.subtotal is number && d.subtotal >= 0 && d.subtotal <= 100000
+        && d.tax is number && d.tax >= 0 && d.tax <= 100000
+        && d.tax_rate is number && d.tax_rate >= 0 && d.tax_rate <= 100
+        && d.tip is number && d.tip >= 0 && d.tip <= 100000
+        && d.tip_rate is number && d.tip_rate >= 0 && d.tip_rate <= 100
+        && d.total is number && d.total >= 0 && d.total <= 100000
+        && d.status in ['scanned', 'confirmed', 'splitting', 'complete']
+        && d.session_id is string && d.session_id.size() <= 32;
+    }
+
+    function isValidClaim(d) {
+      return d.keys().hasOnly([
+          'id', 'session_id', 'line_item_id', 'participant_ids',
+          'share', 'claim_type', 'created_at'
+        ])
+        && d.id is string && d.id.size() <= 64
+        && d.session_id is string && d.session_id.size() >= 4 && d.session_id.size() <= 32
+        && d.line_item_id is string && d.line_item_id.size() <= 64
+        && d.participant_ids is list
+        && d.participant_ids.size() > 0 && d.participant_ids.size() <= 50
+        && d.share is number && d.share > 0 && d.share <= 1
+        && d.claim_type in ['individual', 'split', 'all']
+        && d.created_at is number;
+    }
+
+    // --- Sessions -----------------------------------------------------------
+
     match /sessions/{sessionId} {
-      allow read, write: if true;
+      // Reading a single session by its code is allowed; enumerating the
+      // whole collection is not (subscribeToSession only does a get).
+      allow get: if true;
+      allow list: if false;
+
+      allow create: if isValidSession(request.resource.data)
+                    && request.resource.data.id == sessionId
+                    && request.resource.data.created_at <= request.time.toMillis() + 60000
+                    && inTTL(request.resource.data.expires_at)
+                    && exists(/databases/$(database)/documents/receipts/$(request.resource.data.receipt_id));
+
+      // Identity & lifetime fields are immutable; only live sessions are
+      // mutable; participants list can grow but not shrink, and not by
+      // more than 5 in a single update (caps griefing via array spam).
+      allow update: if isValidSession(request.resource.data)
+                    && request.resource.data.id == resource.data.id
+                    && request.resource.data.created_at == resource.data.created_at
+                    && request.resource.data.expires_at == resource.data.expires_at
+                    && request.resource.data.receipt_id == resource.data.receipt_id
+                    && inTTL(resource.data.expires_at)
+                    && request.resource.data.participants.size() >= resource.data.participants.size()
+                    && request.resource.data.participants.size() <= resource.data.participants.size() + 5;
+
+      // Cleanup is handled by the TTL policy on expires_at.
+      allow delete: if false;
     }
+
+    // --- Receipts -----------------------------------------------------------
+
     match /receipts/{receiptId} {
-      allow read, write: if true;
+      allow get: if true;
+      allow list: if false;
+
+      allow create: if isValidReceipt(request.resource.data)
+                    && request.resource.data.id == receiptId
+                    && request.resource.data.scanned_at <= request.time.toMillis() + 60000;
+
+      allow update: if isValidReceipt(request.resource.data)
+                    && request.resource.data.id == resource.data.id
+                    && request.resource.data.scanned_at == resource.data.scanned_at;
+
+      allow delete: if false;
     }
+
+    // --- Claims -------------------------------------------------------------
+
     match /claims/{claimId} {
-      allow read, write: if true;
+      // Claims are queried by session_id (subscribeToClaims). Rules can't
+      // inspect a query's WHERE clause, so we cap the page size and rely
+      // on session_id being unguessable. The client must pass an explicit
+      // .limit() — see src/lib/firestore.ts.
+      // TODO: restructure as /sessions/{sessionId}/claims/{claimId} so
+      // that list access is naturally scoped to one session.
+      allow get: if true;
+      allow list: if request.query.limit != null && request.query.limit <= 500;
+
+      allow create: if isValidClaim(request.resource.data)
+                    && request.resource.data.id == claimId
+                    && request.resource.data.created_at <= request.time.toMillis() + 60000
+                    && exists(/databases/$(database)/documents/sessions/$(request.resource.data.session_id));
+
+      // Claims are immutable post-creation — the app deletes + recreates.
+      allow update: if false;
+      allow delete: if true;
     }
   }
 }
