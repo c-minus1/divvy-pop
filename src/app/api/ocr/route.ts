@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { parseReceiptText } from "@/lib/ocr-parser";
 import { linesFromVisionWords, type VisionWord } from "@/lib/ocr-lines";
 
+// The endpoint is unauthenticated and forwards to a paid Google API; an
+// 8 MB cap keeps a single request from burning a large Vision quota and
+// matches what the client-side compressor in CameraCapture produces with
+// generous headroom (1200px JPEG @ q=0.8 is typically <1 MB).
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -9,6 +15,20 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       return NextResponse.json({ error: "No image provided" }, { status: 400 });
+    }
+
+    if (!file.type || !file.type.toLowerCase().startsWith("image/")) {
+      return NextResponse.json(
+        { error: "invalid_file", message: "Only image uploads are supported" },
+        { status: 400 }
+      );
+    }
+
+    if (file.size > MAX_IMAGE_BYTES) {
+      return NextResponse.json(
+        { error: "file_too_large", message: "Image must be under 8 MB" },
+        { status: 413 }
+      );
     }
 
     // Convert file to base64 for Vision API

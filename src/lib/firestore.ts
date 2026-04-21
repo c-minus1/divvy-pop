@@ -5,6 +5,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  limit,
   query,
   where,
   onSnapshot,
@@ -13,6 +14,10 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { Session, Receipt, Claim, Participant } from "@/types";
+
+// Cap claim queries so firestore.rules can enforce a max page size.
+// A realistic session is ~20 items × a few claims; 500 is generous headroom.
+const CLAIMS_PAGE_LIMIT = 500;
 
 // --- Sessions ---
 
@@ -90,7 +95,8 @@ export async function deleteClaim(id: string): Promise<void> {
 export async function getClaimsBySession(sessionId: string): Promise<Claim[]> {
   const q = query(
     collection(db, "claims"),
-    where("session_id", "==", sessionId)
+    where("session_id", "==", sessionId),
+    limit(CLAIMS_PAGE_LIMIT)
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => d.data() as Claim);
@@ -102,7 +108,8 @@ export function subscribeToClaims(
 ): () => void {
   const q = query(
     collection(db, "claims"),
-    where("session_id", "==", sessionId)
+    where("session_id", "==", sessionId),
+    limit(CLAIMS_PAGE_LIMIT)
   );
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map((d) => d.data() as Claim));
