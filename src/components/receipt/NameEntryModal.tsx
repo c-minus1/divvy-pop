@@ -28,7 +28,7 @@ export default function NameEntryModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal isOpen={isOpen} onClose={onClose} variant="center">
       <div className="flex flex-col items-center gap-5 py-4">
         <h2 className="font-pixel text-base text-divvy-dark text-center">
           Enter your name
