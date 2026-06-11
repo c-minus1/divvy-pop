@@ -55,7 +55,7 @@ export default function ClaimableItem({
   return (
     <button
       onClick={handleClick}
-      className={`w-full flex items-center justify-between p-4 rounded-xl transition-all active:scale-[0.98] ${
+      className={`w-full flex items-center justify-between gap-3 p-4 rounded-xl transition-all active:scale-[0.98] ${
         isClaimedByMe
           ? "bg-divvy-green/20 border border-divvy-green/60 text-divvy-ink"
           : isClaimed
@@ -63,17 +63,23 @@ export default function ClaimableItem({
           : "bg-white border border-white text-divvy-dark hover:border-divvy-teal/40"
       }`}
     >
-      <div className="flex flex-col items-start gap-1">
-        <span className="font-medium">{item.name}</span>
+      {/* min-w-0 lets the name column shrink so long names wrap inside the
+          rounded button instead of clipping — two "TRATA Smashburger"s with
+          different sides need their full names visible to claim the right
+          one. */}
+      <div className="flex flex-col items-start gap-1 min-w-0">
+        <span className="font-medium text-left break-words w-full">
+          {item.name}
+        </span>
         {isClaimed && (
-          <span className={`text-xs ${isClaimedByMe ? "text-divvy-ink/80" : "text-divvy-dark/50"}`}>
+          <span className={`text-xs text-left ${isClaimedByMe ? "text-divvy-ink/80" : "text-divvy-dark/50"}`}>
             {getClaimLabel()}
           </span>
         )}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 shrink-0">
         <span
-          className={`font-semibold tabular-nums ${
+          className={`font-semibold tabular-nums whitespace-nowrap ${
             isClaimedByMe ? "text-divvy-green" : ""
           }`}
         >

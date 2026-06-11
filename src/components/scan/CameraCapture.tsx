@@ -3,6 +3,7 @@
 import { useRef, useState, useCallback } from "react";
 import { Camera } from "lucide-react";
 import Button from "@/components/ui/Button";
+import { stashPendingReceiptPhoto } from "@/lib/receipt-photo";
 
 interface CameraCaptureProps {
   onCapture: (file: File) => void;
@@ -53,6 +54,9 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
       if (!file) return;
 
       const compressed = await compressImage(file);
+      // Keep the photo around so it can be saved to the device later — the
+      // capture input doesn't put it in the camera roll.
+      await stashPendingReceiptPhoto(compressed);
       setPreview(URL.createObjectURL(compressed));
       onCapture(compressed);
     },

@@ -358,6 +358,132 @@ describe("parseReceiptText", () => {
     expect(parsed.total).toBe(3.78);
   });
 
+  describe("state-labelled tax lines", () => {
+    // Many POS systems label the tax line with the state instead of (or in
+    // addition to) the word "Tax" — e.g. TRATA in Rochester prints "NYS".
+    // Reported scan: the NYS line was dropped entirely, tax came out $0.00,
+    // and the derive-from-total safety net couldn't save it because the
+    // Total row didn't parse cleanly either (subtotal === total on screen).
+    // These cases deliberately omit a clean Total row so they exercise the
+    // classifier itself, not the derive fallback.
+
+    it("recognises 'NYS Tax' as the tax line", () => {
+      const rawText = [
+        "1 Burger $10.00",
+        "Subtotal $10.00",
+        "NYS Tax $0.89",
+      ].join("\n");
+
+      const parsed = parseReceiptText(rawText);
+      expect(parsed.line_items).toHaveLength(1);
+      expect(parsed.tax).toBe(0.89);
+      expect(parsed.total).toBe(10.89);
+    });
+
+    it("recognises 'NYS Sales Tax 8.875%' as the tax line", () => {
+      const rawText = [
+        "1 Burger $10.00",
+        "Subtotal $10.00",
+        "NYS Sales Tax 8.875% $0.89",
+      ].join("\n");
+
+      const parsed = parseReceiptText(rawText);
+      expect(parsed.line_items).toHaveLength(1);
+      expect(parsed.tax).toBe(0.89);
+    });
+
+    it("recognises a bare 'NYS' label as the tax line", () => {
+      // The TRATA receipt: items, then "NYS" with the tax amount and no
+      // "Tax" word anywhere on the row.
+      const rawText = [
+        "1 Carletto Pinot Grigio $22.00",
+        "2 TRATA Smashburger $34.00",
+        "Subtotal $56.00",
+        "NYS $4.97",
+      ].join("\n");
+
+      const parsed = parseReceiptText(rawText);
+      expect(parsed.line_items).toHaveLength(2);
+      expect(parsed.subtotal).toBe(56);
+      expect(parsed.tax).toBe(4.97);
+      expect(parsed.total).toBe(60.97);
+      expect(parsed.line_items.some((i) => /nys/i.test(i.name))).toBe(false);
+    });
+
+    it("recognises a bare 'NYS' tax row even when the Total includes a tip", () => {
+      // Tip-inclusive totals defeat the ≤15% derive guard, so the NYS row
+      // itself must be classified as tax.
+      const rawText = [
+        "1 Carletto Pinot Grigio $22.00",
+        "2 TRATA Smashburger $34.00",
+        "Subtotal $56.00",
+        "NYS $4.97",
+        "Total $72.97",
+      ].join("\n");
+
+      const parsed = parseReceiptText(rawText);
+      expect(parsed.tax).toBe(4.97);
+      expect(parsed.total).toBe(72.97);
+    });
+
+    it("recognises other states' abbreviation + percentage labels", () => {
+      // "across multiple states": e.g. Washington prints "WA 10.25%",
+      // California "CA 8.5%".
+      const rawText = [
+        "1 Burger $10.00",
+        "Subtotal $10.00",
+        "WA 10.25% $1.03",
+      ].join("\n");
+
+      const parsed = parseReceiptText(rawText);
+      expect(parsed.line_items).toHaveLength(1);
+      expect(parsed.tax).toBe(1.03);
+    });
+
+    it("recognises 'State Tax' and 'City Tax' rows, keeping the combined amount", () => {
+      const rawText = [
+        "1 Burger $10.00",
+        "Subtotal $10.00",
+        "State Tax $0.40",
+        "City Tax $0.20",
+      ].join("\n");
+
+      const parsed = parseReceiptText(rawText);
+      expect(parsed.line_items).toHaveLength(1);
+      // Two distinct tax rows should sum, not overwrite.
+      expect(parsed.tax).toBeCloseTo(0.6, 2);
+      expect(parsed.total).toBe(10.6);
+    });
+
+    it("pairs a bare 'NYS' name row with the price on the following row", () => {
+      // Same two-column bbox split already handled for "Tax".
+      const rawText = [
+        "1 Burger $10.00",
+        "Subtotal $10.00",
+        "NYS",
+        "$0.89",
+      ].join("\n");
+
+      const parsed = parseReceiptText(rawText);
+      expect(parsed.tax).toBe(0.89);
+    });
+
+    it("does NOT treat 'NY Strip Steak' or promo percent lines as tax", () => {
+      const rawText = [
+        "1 NY Strip Steak $45.00",
+        "Subtotal $45.00",
+        "NYS Tax $4.00",
+        "Total $49.00",
+        "Get 10% off your next visit",
+      ].join("\n");
+
+      const parsed = parseReceiptText(rawText);
+      expect(parsed.line_items.map((i) => i.name)).toEqual(["NY Strip Steak"]);
+      expect(parsed.tax).toBe(4);
+      expect(parsed.total).toBe(49);
+    });
+  });
+
   it("flags a warning when items do not add up to the subtotal", () => {
     // Third item goes missing — this is the failure mode we want the UI
     // to surface via the amber banner.
