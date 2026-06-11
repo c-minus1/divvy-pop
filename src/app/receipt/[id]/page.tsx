@@ -10,6 +10,7 @@ import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import LineItemRow from "@/components/receipt/LineItemRow";
 import ReceiptTotals from "@/components/receipt/ReceiptTotals";
 import NameEntryModal from "@/components/receipt/NameEntryModal";
+import SaveReceiptPhoto from "@/components/receipt/SaveReceiptPhoto";
 import { getReceipt, updateReceipt, createSession } from "@/lib/firestore";
 import { generateSessionId, getExpiresAt, setParticipantId } from "@/lib/session-utils";
 import type { Receipt, LineItem, Session } from "@/types";
@@ -156,6 +157,12 @@ export default function ReceiptPage({ params }: { params: Promise<{ id: string }
         <h2 className="font-pixel text-xl text-divvy-ink text-center">
           Review the bill
         </h2>
+
+        <SaveReceiptPhoto
+          receiptId={receipt.id}
+          scannedAt={receipt.scanned_at}
+          className="self-center"
+        />
 
         {parseWarning && (
           <Card className="border border-amber-400/30 bg-amber-500/10 w-full">

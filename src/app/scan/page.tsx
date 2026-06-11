@@ -7,7 +7,9 @@ import Logo from "@/components/ui/Logo";
 import Card from "@/components/ui/Card";
 import CameraCapture from "@/components/scan/CameraCapture";
 import ManualEntryForm from "@/components/scan/ManualEntryForm";
+import SaveReceiptPhoto from "@/components/receipt/SaveReceiptPhoto";
 import { createReceipt } from "@/lib/firestore";
+import { attachPendingReceiptPhoto } from "@/lib/receipt-photo";
 import type { LineItem, Receipt } from "@/types";
 
 export default function ScanPage() {
@@ -71,6 +73,7 @@ export default function ScanPage() {
         setStatus("manual");
         return;
       }
+      attachPendingReceiptPhoto(receiptId);
       if (typeof data.warning === "string" && data.warning) {
         try {
           sessionStorage.setItem(`divvy:parse-warning:${receiptId}`, data.warning);
@@ -128,6 +131,7 @@ export default function ScanPage() {
       setSaving(false);
       return;
     }
+    attachPendingReceiptPhoto(receiptId);
     router.push(`/receipt/${receiptId}`);
   };
 
@@ -166,6 +170,9 @@ export default function ScanPage() {
             {errorMessage && (
               <Card className="border border-amber-400/30 bg-amber-500/10 text-amber-200 w-full">
                 <p className="text-sm">{errorMessage}</p>
+                {/* The scan failed, so the photo is the only record of the
+                    bill — offer to save it before it's lost. */}
+                <SaveReceiptPhoto receiptId={null} className="mt-2" />
                 {rawText && (
                   <details className="mt-2">
                     <summary className="text-xs text-amber-200/70 cursor-pointer">
