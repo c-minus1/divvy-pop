@@ -13,7 +13,18 @@ type LineKind = "subtotal" | "tax" | "total" | "skip" | "item";
 
 // Patterns for summary lines (subtotal, tax, total, tip, etc.)
 const subtotalPattern = /^(sub\s*total|subtotal)/i;
-const taxPattern = /^(sales\s*)?tax\b/i;
+// Tax rows aren't always labelled plain "Tax" — many POS systems prefix the
+// state or locality: "NYS Tax", "NY Sales Tax", "CA Tax 8.25%", "State Tax",
+// "City Tax". Allow one short prefix token before the tax keyword.
+const taxPattern =
+  /^(?:(?:[a-z]{2,3}\.?|state|city|county|local)\s+)?(?:sales\s+)?tax\b/i;
+// Some receipts label the tax row with only the state and no "Tax" word at
+// all: bare "NYS" (New York State), or an abbreviation followed by the rate
+// ("NYS 8.875%", "WA 10.25%"). Anchored to the full label so item names like
+// "NY Strip Steak" or footer promos ("Get 10% off your next visit") don't
+// match. Checked after skipPattern so "Tip 20%" stays skipped.
+const stateOnlyTaxPattern =
+  /^(?:nys|nyc)\s*:?$|^[a-z]{2,3}\.?\s+\d{1,2}(?:\.\d+)?\s*%$/i;
 const totalPattern = /^(total|amount\s*due|balance\s*due|grand\s*total)/i;
 const skipPattern =
   /^(tip|gratuity|change|cash|credit|visa|mastercard|amex|card|thank|guest|server|table|check|order|date|time|tel|phone|fax|www|http|receipt|suggested)/i;
@@ -32,6 +43,7 @@ function classify(name: string): LineKind {
   if (taxPattern.test(name)) return "tax";
   if (skipPattern.test(name)) return "skip";
   if (datePattern.test(name) || timePattern.test(name)) return "skip";
+  if (stateOnlyTaxPattern.test(name)) return "tax";
   return "item";
 }
 
@@ -110,11 +122,21 @@ export function parseReceiptText(rawText: string): ParsedReceipt {
     items.push({ name, price, item_order: itemOrder++ });
   };
 
+  // Receipts can print several tax rows (e.g. "State Tax" + "City Tax") —
+  // those should sum. A repeated identical amount, however, is bleed-over of
+  // the same row (duplicate OCR rows are a known failure mode), so count
+  // each amount once.
+  const seenTaxAmounts = new Set<number>();
+
   const apply = (name: string, price: number, kind: LineKind) => {
     if (price <= 0) return;
     if (kind === "subtotal") subtotal = price;
-    else if (kind === "tax") tax = price;
-    else if (kind === "total") total = price;
+    else if (kind === "tax") {
+      if (!seenTaxAmounts.has(price)) {
+        seenTaxAmounts.add(price);
+        tax += price;
+      }
+    } else if (kind === "total") total = price;
     else if (kind === "item") pushItem(name, price);
     // kind === "skip" is intentionally dropped
   };
